@@ -1,1 +1,61 @@
 # webidl-util
+
+A parser and code-generator for WebIDL files.
+
+The goals of this project are:
+1. Generate external interface definitions for easy access on
+   [emscripten/WebIDL](https://emscripten.org/docs/porting/connecting_cpp_and_javascript/WebIDL-Binder.html)
+   modules in Kotlin/js
+2. Generate JNI (Java Native Interface) code (Java side as well as native glue code) from WebIDL to provide Java
+   bindings for native libraries.
+
+The two generator targets are especially useful in the context of Kotlin multi-platform projects, which can then
+rely on the same library APIs for JVM and javascript platforms. However, the generated code can of course also
+be used in non-multiplatform projects. The JNI code can even be used in plain Java without any Kotlin.
+
+## How to use
+For now, the generator is started in code. Hence, using this requires writing a small main method, which could
+look something like this:
+
+```kotlin
+fun main() {
+    val model = WebIdlParser().parse("SomeWebIdlFile.idl")
+    
+    // Generate JNI native glue code
+    JniNativeGenerator().apply {
+        outputDirectory = "path/to/output/jni_native"
+    }.generate(model)
+
+    // Generate JNI Java classes
+    JniJavaGenerator().apply {
+        outputDirectory = "path/to/output/jni_java"
+    }.generate(model)
+    
+    
+    // Or, alternatively, if you are using kotlin/js and want to use a WebIDL bound emscripten module
+    JsInterfaceGenerator().apply {
+        outputDirectory = "path/to/output/kotlinjs"
+    }.generate(model)
+}
+```
+
+## Limitations
+This is a work-in-progress project, and I implement features as I need them, so there are a limitations:
+
+- Running the generator currently requires writing a small `main()` method, which sets everything up and starts 
+  the generator. Integrating this into a gradle-plugin would be nice but who has the time for that :)
+- Code is generated without documentation (WebIDL files typically don't contain docs, but it would be super cool
+  to crawl and include the documentation of the corresponding native lib)
+
+### WebIDL Parser
+- The parser is quite robust but doesn't provide very useful messages on syntax errors.
+- Consistency of the parsed model is not checked (e.g. missing referenced interfaces don't produce an error).
+
+### Kotlin/js Interface Generator
+- No known issues.
+
+### JNI Generator
+- Callbacks from native to Java are not yet supported.
+- Array values are only supported for attributes (not for function arguments / return values).
+- Passing java strings into a native API leaks memory: On the native side the string is copied into a char-array,
+  which is never released.

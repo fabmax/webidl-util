@@ -1,0 +1,13 @@
+[Prefix="namespace::", NoDelete]
+interface AnInterface {
+    void aFunction(long param1, optional VoidPtr param2);
+
+    attribute unsigned long long someAttribute;
+};
+
+interface AnotherInterface {
+    void AnInterface();
+
+    [Value] AnInterface anotherFunction([Const, Ref] AnInterface param1);
+};
+AnotherInterface implements AnInterface;
