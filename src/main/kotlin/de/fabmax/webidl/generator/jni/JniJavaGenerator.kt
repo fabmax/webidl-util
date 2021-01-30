@@ -27,6 +27,12 @@ class JniJavaGenerator : CodeGenerator() {
      */
     val nullableParameters = mutableSetOf<Pair<String, String>>()
 
+    /**
+     * Java code inserted into a static { } block in NativeObject and each enum class. Can be used
+     * to call a native lib loader.
+     */
+    var onClassLoad = ""
+
     private lateinit var nativeObject: JavaClass
     private val typeMap = mutableMapOf<String, JavaClass>()
 
@@ -35,7 +41,7 @@ class JniJavaGenerator : CodeGenerator() {
     }
 
     override fun generate(model: IdlModel) {
-        super.generate(model)
+        deleteDirectory(File(outputDirectory))
 
         generateFrameworkClasses()
         makeClassMappings(model)
@@ -49,6 +55,7 @@ class JniJavaGenerator : CodeGenerator() {
         nativeObject = JavaClass("NativeObject", false, "", packagePrefix).apply {
             protectedDefaultContructor = true
             generatePointerWrapMethods = false
+            staticCode = onClassLoad
         }
         createOutFileWriter(nativeObject.fileName).use { w ->
             nativeObject.generateSource(w) {
@@ -81,12 +88,15 @@ class JniJavaGenerator : CodeGenerator() {
                 typeMap[idlIf.name] = JavaClass(idlIf.name, false, idlPkg, packagePrefix).apply {
                     protectedDefaultContructor = !idlIf.hasDefaultConstructor()
                     generatePointerWrapMethods = true
+                    // no need to include static onClassLoad code here as it is inserted into NativeObject, which
+                    // is the super class of all IdlInterfaces
                 }
             }
             for (idlEn in model.getEnumsByPackage(idlPkg)) {
                 typeMap[idlEn.name] = JavaClass(idlEn.name, true, idlPkg, packagePrefix).apply {
                     protectedDefaultContructor = false
                     generatePointerWrapMethods = false
+                    staticCode = onClassLoad
                 }
             }
         }
@@ -311,6 +321,7 @@ class JniJavaGenerator : CodeGenerator() {
         var modifier = ""
         var protectedDefaultContructor = true
         var generatePointerWrapMethods = true
+        var staticCode = ""
 
         var superClass: JavaClass? = null
         val imports = mutableListOf<JavaClass>()
@@ -345,6 +356,14 @@ class JniJavaGenerator : CodeGenerator() {
             w.write("class $name ")
             superClass?.let { w.write("extends ${it.name} ") }
             w.write("{\n\n")
+
+            if (staticCode.isNotEmpty()) {
+                w.write("    static {\n")
+                staticCode.lines().forEach {
+                    w.write("        ${it.trim()}\n")
+                }
+                w.write("    }\n\n")
+            }
 
             if (protectedDefaultContructor) {
                 w.append("""

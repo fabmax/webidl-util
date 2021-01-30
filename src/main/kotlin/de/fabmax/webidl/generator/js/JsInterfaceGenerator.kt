@@ -52,10 +52,8 @@ class JsInterfaceGenerator : CodeGenerator() {
     }
 
     override fun generate(model: IdlModel) {
-        super.generate(model)
-
+        deleteDirectory(File(outputDirectory))
         generateLoader(model)
-
         for (pkg in model.collectPackages()) {
             val (ktPkg, file) = makeFileNameAndPackage(pkg, model)
             model.generatePackage(pkg, ktPkg, file.path)

@@ -2,6 +2,7 @@ package de.fabmax.webidl.generator.jni
 
 import de.fabmax.webidl.generator.CodeGenerator
 import de.fabmax.webidl.model.*
+import java.io.File
 import java.io.Writer
 
 class JniNativeGenerator : CodeGenerator() {
@@ -15,9 +16,7 @@ class JniNativeGenerator : CodeGenerator() {
     }
 
     override fun generate(model: IdlModel) {
-        super.generate(model)
         this.model = model
-
         createOutFileWriter("glue.h").use {
             model.generateGlueCpp(it)
         }

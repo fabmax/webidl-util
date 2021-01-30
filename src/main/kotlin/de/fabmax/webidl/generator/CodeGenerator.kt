@@ -7,11 +7,9 @@ abstract class CodeGenerator {
 
     var outputDirectory = "./generated"
 
-    open fun generate(model: IdlModel) {
-        deleteDirectory(File(outputDirectory))
-    }
+    abstract fun generate(model: IdlModel)
 
-    private fun deleteDirectory(dir: File) {
+    fun deleteDirectory(dir: File) {
         dir.listFiles()?.forEach {
             if (it.isDirectory) {
                 deleteDirectory(it)
@@ -20,12 +18,14 @@ abstract class CodeGenerator {
         }
     }
 
+    fun getOutFile(path: String) = File(outputDirectory, path)
+
     fun createOutFileWriter(path: String): Writer {
         return OutputStreamWriter(createOutFile(path))
     }
 
     fun createOutFile(path: String): OutputStream {
-        val outPath = File(outputDirectory, path)
+        val outPath = getOutFile(path)
         outPath.parentFile.mkdirs()
         return FileOutputStream(outPath)
     }

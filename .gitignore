@@ -2,3 +2,4 @@
 /.idea
 /build
 /test_output
+/publishingCredentials.properties
