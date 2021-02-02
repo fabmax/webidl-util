@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "de.fabmax"
-version = "0.5.0"
+version = "0.5.1"
 
 repositories {
     mavenCentral()
@@ -27,11 +27,11 @@ compileKotlin.kotlinOptions.apply {
     freeCompilerArgs = freeCompilerArgs + "-Xopt-in=kotlin.RequiresOptIn"
 }
 
-if (File("publishingCredentials.properties").exists()) {
-    val props = Properties()
-    props.load(FileInputStream("publishingCredentials.properties"))
+publishing {
+    if (File("publishingCredentials.properties").exists()) {
+        val props = Properties()
+        props.load(FileInputStream("publishingCredentials.properties"))
 
-    publishing {
         repositories {
             maven {
                 url = uri("${props.getProperty("publishRepoUrl")}/webidl-util")
@@ -41,31 +41,30 @@ if (File("publishingCredentials.properties").exists()) {
                 }
             }
         }
+    }
 
-        publications {
-            create<MavenPublication>("mavenKotlin") {
-                from(components["java"])
+    publications {
+        create<MavenPublication>("mavenKotlin") {
+            from(components["java"])
 
-                artifact(tasks["kotlinSourcesJar"])
+            artifact(tasks["kotlinSourcesJar"])
 
-                pom {
-                    name.set("webidl-util")
-                    description.set("A parser and code-generator for WebIDL files.")
+            pom {
+                name.set("webidl-util")
+                description.set("A parser and code-generator for WebIDL files.")
+                url.set("https://github.com/fabmax/webidl-util")
+                licenses {
+                    license {
+                        name.set("The Apache License, Version 2.0")
+                        url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+                    }
+                }
+                scm {
+                    connection.set("scm:git:https://github.com/fabmax/webidl-util.git")
+                    developerConnection.set("scm:git:https://github.com/fabmax/webidl-util.git")
                     url.set("https://github.com/fabmax/webidl-util")
-                    licenses {
-                        license {
-                            name.set("The Apache License, Version 2.0")
-                            url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
-                        }
-                    }
-                    scm {
-                        connection.set("scm:git:https://github.com/fabmax/webidl-util.git")
-                        developerConnection.set("scm:git:https://github.com/fabmax/webidl-util.git")
-                        url.set("https://github.com/fabmax/webidl-util")
-                    }
                 }
             }
         }
     }
-
 }

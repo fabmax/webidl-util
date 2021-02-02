@@ -110,7 +110,7 @@ class JniNativeGenerator : CodeGenerator() {
         val args = generateFuncArgs(func)
         val funcArgs = func.parameters.joinToString(", ") { it.getNativeType().castJniToNative(it.name) }
 
-        w.append("JNIEXPORT ${natType.jniType()} JNICALL ${nativeFunName(sourcePackage, name, func.name, suffix)}(JNIEnv* env, jobject, jlong address$args) {\n")
+        w.append("JNIEXPORT ${natType.jniType()} JNICALL ${nativeFunName(sourcePackage, name, func.name, suffix)}(JNIEnv* env, jclass, jlong address$args) {\n")
         w.append("    (void) env;    // avoid unused parameter warning / error\n")
         if (natType.isValue) {
             // we can't pass value objects via JNI, use a static variable to cache the value and return a pointer to that one
@@ -138,7 +138,7 @@ class JniNativeGenerator : CodeGenerator() {
         val ctorCall = "new ${natType.typeName}($ctorArgs)"
 
         w.append("""
-            JNIEXPORT jlong JNICALL ${nativeFunName(sourcePackage, name, func.name, suffix)}(JNIEnv* env, jobject$args) {
+            JNIEXPORT jlong JNICALL ${nativeFunName(sourcePackage, name, func.name, suffix)}(JNIEnv* env, jclass$args) {
                 (void) env;    // avoid unused parameter warning / error
                 return (jlong) $ctorCall;
             }
@@ -158,7 +158,7 @@ class JniNativeGenerator : CodeGenerator() {
     private fun IdlInterface.generateDtor(w: Writer) {
         val natType = getNativeType()
         w.append("""
-            JNIEXPORT void JNICALL ${nativeFunName(sourcePackage, name, "delete_native_instance")}(JNIEnv*, jobject, jlong address) {
+            JNIEXPORT void JNICALL ${nativeFunName(sourcePackage, name, "delete_native_instance")}(JNIEnv*, jclass, jlong address) {
                 delete ${natType.castJniToNative("address")};
             }
         """.trimIndent()).append("\n")
@@ -168,13 +168,13 @@ class JniNativeGenerator : CodeGenerator() {
         val ifPrefix = getDecoratorValue("Prefix", "")
         val natType = attrib.getNativeType()
         val methodName = nativeFunName(this, attrib, "get")
-        val staticMod = if (attrib.isStatic) "jclass" else "jobject, jlong address"
+        val staticMod = if (attrib.isStatic) "" else ", jlong address"
         val arrayMod = if (attrib.type.isArray) ", jint index" else ""
         val arrayValueMod = if (attrib.type.isArray) "[index]" else ""
         val getSelf = if (attrib.isStatic) "" else "    $ifPrefix$name* self = ($ifPrefix$name*) address;\n"
         val returnStr = if (attrib.isStatic) "$ifPrefix$name::${attrib.name}" else "self->${attrib.name}"
 
-        w.write("JNIEXPORT ${natType.jniType()} JNICALL $methodName(JNIEnv* env, $staticMod$arrayMod) {\n")
+        w.write("JNIEXPORT ${natType.jniType()} JNICALL $methodName(JNIEnv* env, jclass$staticMod$arrayMod) {\n")
         w.write("    (void) env;    // avoid unused parameter warning / error\n")
         w.write(getSelf)
         w.write("    return ${natType.castNativeToJni("$returnStr$arrayValueMod")};\n")
@@ -185,13 +185,13 @@ class JniNativeGenerator : CodeGenerator() {
         val ifPrefix = getDecoratorValue("Prefix", "")
         val natType = attrib.getNativeType()
         val methodName = nativeFunName(this, attrib, "set")
-        val staticMod = if (attrib.isStatic) "jclass" else "jobject, jlong address"
+        val staticMod = if (attrib.isStatic) "" else ", jlong address"
         val arrayMod = if (attrib.type.isArray) ", jint index" else ""
         val arrayValueMod = if (attrib.type.isArray) "[index]" else ""
         val getSelf = if (attrib.isStatic) "" else "    $ifPrefix$name* self = ($ifPrefix$name*) address;\n"
         val valueReceiveStr = if (attrib.isStatic) "$ifPrefix$name::${attrib.name}" else "self->${attrib.name}"
 
-        w.write("JNIEXPORT void JNICALL $methodName(JNIEnv* env, $staticMod$arrayMod, ${natType.jniType()} value) {\n")
+        w.write("JNIEXPORT void JNICALL $methodName(JNIEnv* env, jclass$staticMod$arrayMod, ${natType.jniType()} value) {\n")
         w.write("    (void) env;    // avoid unused parameter warning / error\n")
         w.write(getSelf)
         w.write("    $valueReceiveStr$arrayValueMod = ${natType.castJniToNative("value")};\n")

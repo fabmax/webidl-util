@@ -210,7 +210,7 @@ class JniJavaGenerator : CodeGenerator() {
         val callArgs = nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable(this, ctorFunc)) }
 
         w.append("""
-            private native long _${ctorFunc.name}($nativeArgs);
+            private static native long _${ctorFunc.name}($nativeArgs);
             public ${ctorFunc.name}($javaArgs) {
                 address = _${ctorFunc.name}($callArgs);
             }
@@ -219,7 +219,7 @@ class JniJavaGenerator : CodeGenerator() {
 
     private fun generateDestructor(w: Writer) {
         w.append("""
-            private native long _delete_native_instance(long address);
+            private static native long _delete_native_instance(long address);
             public void destroy() {
                 if (address == 0L) {
                     throw new IllegalStateException(this + " is already deleted");
@@ -246,7 +246,7 @@ class JniJavaGenerator : CodeGenerator() {
         }
 
         w.append("""
-            private$staticMod native ${returnType.internalType} _${func.name}($nativeArgs);
+            private static native ${returnType.internalType} _${func.name}($nativeArgs);
             public$staticMod ${returnType.javaType} ${func.name}($javaArgs) {
                 ${returnType.boxedReturn("_${func.name}($callArgs)", "$name.${func.name}" in nullableReturnValues)};
             }
@@ -265,7 +265,7 @@ class JniJavaGenerator : CodeGenerator() {
         val addressCall = if (attrib.isStatic) "" else "address"
 
         w.append("""
-            private$staticMod native ${javaType.internalType} _$methodName($addressSig$arrayModPriv);
+            private static native ${javaType.internalType} _$methodName($addressSig$arrayModPriv);
             public$staticMod ${javaType.javaType} $methodName($arrayModPub) {
                 ${javaType.boxedReturn("_$methodName($addressCall$arrayCallMod)", attrib.isNullable(this))};
             }
@@ -290,7 +290,7 @@ class JniJavaGenerator : CodeGenerator() {
         nativeSig += "${javaType.internalType} value"
 
         w.append("""
-            private$staticMod native void _$methodName($nativeSig);
+            private static native void _$methodName($nativeSig);
             public$staticMod void $methodName($arrayModPub${javaType.javaType} value) {
                 _$methodName($addressCall$arrayCallMod, ${javaType.unbox("value", attrib.isNullable(this))});
             }
