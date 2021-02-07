@@ -26,7 +26,12 @@ abstract class CodeGenerator {
 
     fun createOutFile(path: String): OutputStream {
         val outPath = getOutFile(path)
-        outPath.parentFile.mkdirs()
+        val dir = outPath.parentFile
+        if (!dir.exists()) {
+            if (!dir.mkdirs()) {
+                throw IOException("Failed creating output directory")
+            }
+        }
         return FileOutputStream(outPath)
     }
 

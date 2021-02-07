@@ -4,15 +4,19 @@ import java.util.Properties
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.4.21"
+    kotlin("jvm") version "1.4.30"
+    id("org.jetbrains.dokka") version "1.4.20"
     `maven-publish`
+    signing
 }
 
 group = "de.fabmax"
-version = "0.5.1"
+version = "0.6.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    // dokkaJavadoc plugin is published on jcenter
+    jcenter()
 }
 
 dependencies {
@@ -20,6 +24,13 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.2")
 
     testImplementation("junit:junit:4.13")
+}
+
+tasks.register<Jar>("javadocJar") {
+    dependsOn("dokkaJavadoc")
+    group = "documentation"
+    archiveClassifier.set("javadoc")
+    from("$buildDir/dokka/javadoc")
 }
 
 val compileKotlin: KotlinCompile by tasks
@@ -34,7 +45,11 @@ publishing {
 
         repositories {
             maven {
-                url = uri("${props.getProperty("publishRepoUrl")}/webidl-util")
+                url = if (version.toString().endsWith("-SNAPSHOT")) {
+                    uri("https://oss.sonatype.org/content/repositories/snapshots")
+                } else {
+                    uri("https://oss.sonatype.org/service/local/staging/deploy/maven2")
+                }
                 credentials {
                     username = props.getProperty("publishUser")
                     password = props.getProperty("publishPassword")
@@ -48,11 +63,20 @@ publishing {
             from(components["java"])
 
             artifact(tasks["kotlinSourcesJar"])
+            artifact(tasks["javadocJar"])
 
             pom {
                 name.set("webidl-util")
                 description.set("A parser and code-generator for WebIDL files.")
                 url.set("https://github.com/fabmax/webidl-util")
+                developers {
+                    developer {
+                        name.set("Max Thiele")
+                        email.set("fabmax.thiele@gmail.com")
+                        organization.set("github")
+                        organizationUrl.set("https://github.com/fabmax")
+                    }
+                }
                 licenses {
                     license {
                         name.set("The Apache License, Version 2.0")
@@ -60,11 +84,15 @@ publishing {
                     }
                 }
                 scm {
-                    connection.set("scm:git:https://github.com/fabmax/webidl-util.git")
-                    developerConnection.set("scm:git:https://github.com/fabmax/webidl-util.git")
-                    url.set("https://github.com/fabmax/webidl-util")
+                    connection.set("scm:git:git://github.com/fabmax/webidl-util.git")
+                    developerConnection.set("scm:git:ssh://github.com:fabmax/webidl-util.git")
+                    url.set("https://github.com/fabmax/webidl-util/tree/main")
                 }
             }
         }
     }
+}
+
+signing {
+    sign(publishing.publications["mavenKotlin"])
 }

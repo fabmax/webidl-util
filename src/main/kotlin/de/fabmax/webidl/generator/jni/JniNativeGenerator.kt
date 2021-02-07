@@ -2,12 +2,13 @@ package de.fabmax.webidl.generator.jni
 
 import de.fabmax.webidl.generator.CodeGenerator
 import de.fabmax.webidl.model.*
-import java.io.File
 import java.io.Writer
 
 class JniNativeGenerator : CodeGenerator() {
 
     var packagePrefix = ""
+
+    val stackAllocatableClasses = mutableSetOf<String>()
 
     private lateinit var model: IdlModel
 
@@ -53,6 +54,14 @@ class JniNativeGenerator : CodeGenerator() {
 
     private fun IdlInterface.generate(w: Writer) {
         w.write("\n// $name\n")
+        if (name in stackAllocatableClasses) {
+            generateSizeOf(w)
+            val ctors = functions.filter { it.name == name }
+            val isOverloaded = ctors.size > 1
+            ctors.forEach { ctor ->
+                generatePlacedCtor(ctor, isOverloaded, w)
+            }
+        }
         functions.forEach { func ->
             val isOverloaded = functions.filter { it.name == func.name }.count() > 1
             if (func.isStatic) {
@@ -130,6 +139,21 @@ class JniNativeGenerator : CodeGenerator() {
         w.append("}\n")
     }
 
+    private fun IdlInterface.generatePlacedCtor(func: IdlFunction, isOverloaded: Boolean, w: Writer) {
+        val natType = getNativeType()
+        val suffix = func.getFunctionSuffix(isOverloaded, true).replace("__", "__J")
+        val args = generateFuncArgs(func)
+        val ctorArgs = func.parameters.joinToString(", ") { it.getNativeType().castJniToNative(it.name) }
+        val ctorCall = "new((void*)__placement_address) ${natType.typeName}($ctorArgs)"
+
+        w.append("""
+            JNIEXPORT void JNICALL ${nativeFunName(sourcePackage, name, "_placement_new_${func.name}", suffix)}(JNIEnv* env, jclass, jlong __placement_address$args) {
+                (void) env;    // avoid unused parameter warning / error
+                $ctorCall;
+            }
+        """.trimIndent()).append("\n")
+    }
+
     private fun IdlInterface.generateCtor(func: IdlFunction, isOverloaded: Boolean, w: Writer) {
         val natType = getNativeType()
         val suffix = func.getFunctionSuffix(isOverloaded, true)
@@ -196,6 +220,16 @@ class JniNativeGenerator : CodeGenerator() {
         w.write(getSelf)
         w.write("    $valueReceiveStr$arrayValueMod = ${natType.castJniToNative("value")};\n")
         w.write("}\n")
+    }
+
+    private fun IdlInterface.generateSizeOf(w: Writer) {
+        val ifPrefix = getDecoratorValue("Prefix", "")
+        val methodName = nativeFunName(sourcePackage, name, "_sizeOf")
+        w.append("""
+            JNIEXPORT jint JNICALL $methodName(JNIEnv*, jclass) {
+                return sizeof($ifPrefix$name);
+            }
+        """.trimIndent()).append("\n")
     }
 
     private fun nativeFunName(idlIf: IdlInterface, attrib: IdlAttribute, funPrefix: String) =

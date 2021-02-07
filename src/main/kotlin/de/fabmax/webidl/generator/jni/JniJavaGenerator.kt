@@ -10,6 +10,22 @@ class JniJavaGenerator : CodeGenerator() {
     var packagePrefix = ""
 
     /**
+     * List of WebIDL interfaces / classes which should be stack allocatable (i.e. can be created
+     * at a user-specified address). This can be beneficial for small high-frequency objects.
+     */
+    val stackAllocatableClasses = mutableSetOf<String>()
+
+    /**
+     * If true simple address-based allocation methods are generated for stack allocatable classes.
+     */
+    var generateSimpleStackAllocators = true
+
+    /**
+     * If true interface-based allocation methods are generated for stack allocatable classes.
+     */
+    var generateInterfaceStackAllocators = true
+
+    /**
      * List of interface attributes, which will be generated with nullable types. Expected format:
      * "InterfaceName.attributeName"
      */
@@ -61,6 +77,7 @@ class JniJavaGenerator : CodeGenerator() {
             nativeObject.generateSource(w) {
                 append("""
                     protected long address = 0L;
+                    protected boolean isStackAllocated = false;
                     
                     protected NativeObject(long address) {
                         this.address = address;
@@ -73,7 +90,12 @@ class JniJavaGenerator : CodeGenerator() {
                     public long getAddress() {
                         return address;
                     }
-                """.trimIndent().prependIndent("    "))
+                    
+                    @FunctionalInterface
+                    public interface Allocator<T> {
+                        long on(T allocator, int alignment, int size);
+                    }
+                """.trimIndent().prependIndent("    ")).append('\n')
             }
         }
     }
@@ -164,6 +186,15 @@ class JniJavaGenerator : CodeGenerator() {
 
     private fun IdlInterface.generate(javaClass: JavaClass, w: Writer) = javaClass.generateSource(w) {
         val ctorFunctions = functions.filter { it.name == name }
+
+        if (name in stackAllocatableClasses) {
+            generateSizeOf(w)
+            w.append("    // Placed Constructors\n\n")
+            ctorFunctions.forEach { ctor ->
+                generatePlacedConstructor(ctor, w)
+            }
+        }
+
         if (ctorFunctions.isNotEmpty()) {
             w.append("    // Constructors\n\n")
             ctorFunctions.forEach { ctor ->
@@ -203,6 +234,55 @@ class JniJavaGenerator : CodeGenerator() {
         return "${idlIf.name}.$name" in nullableAttributes
     }
 
+    private fun generateSizeOf(w: Writer) {
+        w.append("""
+            private static native int __sizeOf();
+            public static final int SIZEOF = __sizeOf();
+            public static final int ALIGNOF = 8;
+        """.trimIndent().prependIndent("    ")).append("\n\n")
+    }
+
+    private fun IdlInterface.generatePlacedConstructor(ctorFunc: IdlFunction, w: Writer) {
+        val nativeToJavaParams = ctorFunc.parameters.zip(ctorFunc.parameters.map { JavaType(it.type) })
+        var nativeArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
+        var javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
+        var callArgs = nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable(this, ctorFunc)) }
+
+        if (nativeArgs.isNotEmpty()) {
+            nativeArgs = ", $nativeArgs"
+        }
+        if (javaArgs.isNotEmpty()) {
+            javaArgs = ", $javaArgs"
+        }
+        if (callArgs.isNotEmpty()) {
+            callArgs = ", $callArgs"
+        }
+
+        w.append("    private static native void __placement_new_${ctorFunc.name}(long address$nativeArgs);\n")
+        if (generateSimpleStackAllocators) {
+            w.append("""
+                public static $name malloc(long address$javaArgs) {
+                    __placement_new_${ctorFunc.name}(address$callArgs);
+                    $name mallocedObj = wrapPointer(address);
+                    mallocedObj.isStackAllocated = true;
+                    return mallocedObj;
+                }
+            """.trimIndent().prependIndent("    ")).append("\n")
+        }
+        if (generateInterfaceStackAllocators) {
+            w.append("""
+                public static <T> $name malloc(T allocator, Allocator<T> allocate$javaArgs) {
+                    long address = allocate.on(allocator, ALIGNOF, SIZEOF); 
+                    __placement_new_${ctorFunc.name}(address$callArgs);
+                    $name mallocedObj = wrapPointer(address);
+                    mallocedObj.isStackAllocated = true;
+                    return mallocedObj;
+                }
+            """.trimIndent().prependIndent("    ")).append("\n")
+        }
+        w.append('\n')
+    }
+
     private fun IdlInterface.generateConstructor(ctorFunc: IdlFunction, w: Writer) {
         val nativeToJavaParams = ctorFunc.parameters.zip(ctorFunc.parameters.map { JavaType(it.type) })
         val nativeArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
@@ -211,7 +291,7 @@ class JniJavaGenerator : CodeGenerator() {
 
         w.append("""
             private static native long _${ctorFunc.name}($nativeArgs);
-            public ${ctorFunc.name}($javaArgs) {
+            public $name($javaArgs) {
                 address = _${ctorFunc.name}($callArgs);
             }
         """.trimIndent().prependIndent("    ")).append("\n\n")
@@ -223,6 +303,9 @@ class JniJavaGenerator : CodeGenerator() {
             public void destroy() {
                 if (address == 0L) {
                     throw new IllegalStateException(this + " is already deleted");
+                }
+                if (isStackAllocated) {
+                    throw new IllegalStateException(this + " is stack allocated and cannot be deleted");
                 }
                 _delete_native_instance(address);
                 address = 0L;
