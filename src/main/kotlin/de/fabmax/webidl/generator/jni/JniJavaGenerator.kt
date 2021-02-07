@@ -4,6 +4,7 @@ import de.fabmax.webidl.generator.CodeGenerator
 import de.fabmax.webidl.model.*
 import java.io.File
 import java.io.Writer
+import java.util.*
 
 class JniJavaGenerator : CodeGenerator() {
 
@@ -258,8 +259,15 @@ class JniJavaGenerator : CodeGenerator() {
             callArgs = ", $callArgs"
         }
 
-        w.append("    private static native void __placement_new_${ctorFunc.name}(long address$nativeArgs);\n")
+        val paramDocs = mutableMapOf<String, String>()
+        nativeToJavaParams.forEach { (nat, java) ->
+            paramDocs[nat.name] = makeTypeDoc(java, nat.decorators)
+        }
+
         if (generateSimpleStackAllocators) {
+            val pDocs = mutableMapOf("address" to "where the object is allocated")
+            pDocs.putAll(paramDocs)
+            generateJavadoc(pDocs, "", w)
             w.append("""
                 public static $name malloc(long address$javaArgs) {
                     __placement_new_${ctorFunc.name}(address$callArgs);
@@ -267,9 +275,15 @@ class JniJavaGenerator : CodeGenerator() {
                     mallocedObj.isStackAllocated = true;
                     return mallocedObj;
                 }
-            """.trimIndent().prependIndent("    ")).append("\n")
+            """.trimIndent().prependIndent("    ")).append("\n\n")
         }
         if (generateInterfaceStackAllocators) {
+            val pDocs = mutableMapOf(
+                "allocator" to "object to use for allocation",
+                "allocate" to "method to call on allocator to obtain the target address"
+            )
+            pDocs.putAll(paramDocs)
+            generateJavadoc(pDocs, "", w)
             w.append("""
                 public static <T> $name malloc(T allocator, Allocator<T> allocate$javaArgs) {
                     long address = allocate.on(allocator, ALIGNOF, SIZEOF); 
@@ -278,9 +292,9 @@ class JniJavaGenerator : CodeGenerator() {
                     mallocedObj.isStackAllocated = true;
                     return mallocedObj;
                 }
-            """.trimIndent().prependIndent("    ")).append("\n")
+            """.trimIndent().prependIndent("    ")).append("\n\n")
         }
-        w.append('\n')
+        w.append("    private static native void __placement_new_${ctorFunc.name}(long address$nativeArgs);\n\n")
     }
 
     private fun IdlInterface.generateConstructor(ctorFunc: IdlFunction, w: Writer) {
@@ -289,17 +303,22 @@ class JniJavaGenerator : CodeGenerator() {
         val javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
         val callArgs = nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable(this, ctorFunc)) }
 
+        val paramDocs = mutableMapOf<String, String>()
+        nativeToJavaParams.forEach { (nat, java) ->
+            paramDocs[nat.name] = makeTypeDoc(java, nat.decorators)
+        }
+        generateJavadoc(paramDocs, "", w)
+
         w.append("""
-            private static native long _${ctorFunc.name}($nativeArgs);
             public $name($javaArgs) {
                 address = _${ctorFunc.name}($callArgs);
             }
+            private static native long _${ctorFunc.name}($nativeArgs);
         """.trimIndent().prependIndent("    ")).append("\n\n")
     }
 
     private fun generateDestructor(w: Writer) {
         w.append("""
-            private static native long _delete_native_instance(long address);
             public void destroy() {
                 if (address == 0L) {
                     throw new IllegalStateException(this + " is already deleted");
@@ -310,6 +329,7 @@ class JniJavaGenerator : CodeGenerator() {
                 _delete_native_instance(address);
                 address = 0L;
             }
+            private static native long _delete_native_instance(long address);
         """.trimIndent().prependIndent("    ")).append("\n\n")
     }
 
@@ -328,11 +348,18 @@ class JniJavaGenerator : CodeGenerator() {
             callArgs += nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable(this, func)) }
         }
 
+        val paramDocs = mutableMapOf<String, String>()
+        nativeToJavaParams.forEach { (nat, java) ->
+            paramDocs[nat.name] = makeTypeDoc(java, nat.decorators)
+        }
+        val returnDoc = if (returnType.idlType.isVoid) "" else makeTypeDoc(returnType, func.decorators)
+        generateJavadoc(paramDocs, returnDoc, w)
+
         w.append("""
-            private static native ${returnType.internalType} _${func.name}($nativeArgs);
             public$staticMod ${returnType.javaType} ${func.name}($javaArgs) {
                 ${returnType.boxedReturn("_${func.name}($callArgs)", "$name.${func.name}" in nullableReturnValues)};
             }
+            private static native ${returnType.internalType} _${func.name}($nativeArgs);
         """.trimIndent().prependIndent("    ")).append("\n\n")
     }
 
@@ -347,11 +374,12 @@ class JniJavaGenerator : CodeGenerator() {
         val addressSig = if (attrib.isStatic) "" else "long address"
         val addressCall = if (attrib.isStatic) "" else "address"
 
+        generateJavadoc(emptyMap(), makeTypeDoc(javaType, attrib.decorators), w)
         w.append("""
-            private static native ${javaType.internalType} _$methodName($addressSig$arrayModPriv);
             public$staticMod ${javaType.javaType} $methodName($arrayModPub) {
                 ${javaType.boxedReturn("_$methodName($addressCall$arrayCallMod)", attrib.isNullable(this))};
             }
+            private static native ${javaType.internalType} _$methodName($addressSig$arrayModPriv);
         """.trimIndent().prependIndent("    ")).append("\n\n")
     }
 
@@ -372,12 +400,42 @@ class JniJavaGenerator : CodeGenerator() {
         if (nativeSig.isNotEmpty()) { nativeSig += ", "}
         nativeSig += "${javaType.internalType} value"
 
+        generateJavadoc(mapOf("value" to makeTypeDoc(javaType, attrib.decorators)), "", w)
         w.append("""
-            private static native void _$methodName($nativeSig);
             public$staticMod void $methodName($arrayModPub${javaType.javaType} value) {
                 _$methodName($addressCall$arrayCallMod, ${javaType.unbox("value", attrib.isNullable(this))});
             }
+            private static native void _$methodName($nativeSig);
         """.trimIndent().prependIndent("    ")).append("\n\n")
+    }
+
+    private fun makeTypeDoc(javaType: JavaType, decorators: List<IdlDecorator> = emptyList()): String {
+        val decoString = when {
+            javaType.isIdlEnum -> " [enum]"
+            decorators.isNotEmpty() -> " $decorators"
+            else -> ""
+        }
+        val typeString = when {
+            javaType.idlType.isComplexType -> "{@link ${javaType.idlType.typeName}}"
+            else -> javaType.idlType.typeName
+        }
+        return "$typeString$decoString"
+    }
+
+    private fun generateJavadoc(paramDocs: Map<String, String>, returnDoc: String, w: Writer) {
+        if (paramDocs.isNotEmpty() || returnDoc.isNotEmpty()) {
+            w.append("    /**\n")
+            if (paramDocs.isNotEmpty()) {
+                val maxNameLen = paramDocs.keys.map { it.length }.maxOf { it }
+                paramDocs.forEach { (name, doc) ->
+                    w.append(String.format(Locale.ENGLISH, "     * @param %-${maxNameLen}s %s\n", name, doc))
+                }
+            }
+            if (returnDoc.isNotEmpty()) {
+                w.append("     * @return $returnDoc\n")
+            }
+            w.append("     */\n")
+        }
     }
 
     private fun IdlEnum.generate(javaClass: JavaClass, w: Writer) = javaClass.generateSource(w) {
@@ -479,6 +537,9 @@ class JniJavaGenerator : CodeGenerator() {
     private inner class JavaType(val idlType: IdlType) {
         val internalType: String
         val javaType: String
+        val isIdlEnum: Boolean
+            get() = typeMap[idlType.typeName]?.isEnum ?: false
+
         private val requiresMarshalling: Boolean
             get() = internalType != javaType
 
@@ -492,7 +553,7 @@ class JniJavaGenerator : CodeGenerator() {
                     internalType = "long"
                     javaType = nativeObject.name
                 }
-                typeMap[idlType.typeName]?.isEnum == true -> {
+                isIdlEnum -> {
                     internalType = "int"
                     javaType = "int"
                 }

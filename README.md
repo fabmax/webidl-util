@@ -14,8 +14,18 @@ rely on the same library APIs for JVM and javascript platforms. However, the gen
 be used in non-multiplatform projects. The JNI code can even be used in plain Java without any Kotlin.
 
 ## How to use
-For now, the generator is started in code. Hence, using this requires writing a small main method, which could
-look something like this:
+This library is published to maven central, so you can easily add ít to your (gradle-)dependencies:
+```
+dependencies {
+    implementation("de.fabmax:webidl-util:0.6.0")
+}
+```
+
+As this is a code generator, it makes sense to integrate this library into a buildscript. Although there is no
+dedicated gradle plugin, it is easy enough to integrate this into a gradle task. You can check out my
+[physx-jni](https://github.com/fabmax/physx-jni) project to see this in action (take a look at the buildSrc folder).
+
+Alternatively you can write a small `main()` method which configures and runs the generator:
 
 ```kotlin
 fun main() {
@@ -24,17 +34,21 @@ fun main() {
     // Generate JNI native glue code
     JniNativeGenerator().apply {
         outputDirectory = "path/to/output/jni_native"
+        // other configuration stuff...
     }.generate(model)
 
     // Generate JNI Java classes
     JniJavaGenerator().apply {
         outputDirectory = "path/to/output/jni_java"
+        // other configuration stuff...
     }.generate(model)
     
     
-    // Or, alternatively, if you are using kotlin/js and want to use a WebIDL bound emscripten module
+    // Or, alternatively, if you are using kotlin/js and
+    // want to use a WebIDL bound emscripten module
     JsInterfaceGenerator().apply {
         outputDirectory = "path/to/output/kotlinjs"
+        // other configuration stuff...
     }.generate(model)
 }
 ```
@@ -42,9 +56,7 @@ fun main() {
 ## Limitations
 This is a work-in-progress project, and I implement features as I need them, so there are a limitations:
 
-- Running the generator currently requires writing a small `main()` method, which sets everything up and starts 
-  the generator. Integrating this into a gradle-plugin would be nice but who has the time for that :)
-- Code is generated without documentation (WebIDL files typically don't contain docs, but it would be super cool
+- Code is generated with minimal documentation (WebIDL files typically don't contain docs, but it would be super cool
   to crawl and include the documentation of the corresponding native lib)
 
 ### WebIDL Parser
