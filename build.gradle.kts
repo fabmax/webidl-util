@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "de.fabmax"
-version = "0.6.0"
+version = "0.6.1-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -39,25 +39,6 @@ compileKotlin.kotlinOptions.apply {
 }
 
 publishing {
-    if (File("publishingCredentials.properties").exists()) {
-        val props = Properties()
-        props.load(FileInputStream("publishingCredentials.properties"))
-
-        repositories {
-            maven {
-                url = if (version.toString().endsWith("-SNAPSHOT")) {
-                    uri("https://oss.sonatype.org/content/repositories/snapshots")
-                } else {
-                    uri("https://oss.sonatype.org/service/local/staging/deploy/maven2")
-                }
-                credentials {
-                    username = props.getProperty("publishUser")
-                    password = props.getProperty("publishPassword")
-                }
-            }
-        }
-    }
-
     publications {
         create<MavenPublication>("mavenKotlin") {
             from(components["java"])
@@ -91,8 +72,27 @@ publishing {
             }
         }
     }
-}
 
-signing {
-    sign(publishing.publications["mavenKotlin"])
+    if (File("publishingCredentials.properties").exists()) {
+        val props = Properties()
+        props.load(FileInputStream("publishingCredentials.properties"))
+
+        repositories {
+            maven {
+                url = if (version.toString().endsWith("-SNAPSHOT")) {
+                    uri("https://oss.sonatype.org/content/repositories/snapshots")
+                } else {
+                    uri("https://oss.sonatype.org/service/local/staging/deploy/maven2")
+                }
+                credentials {
+                    username = props.getProperty("publishUser")
+                    password = props.getProperty("publishPassword")
+                }
+            }
+        }
+
+        signing {
+            sign(publishing.publications["mavenKotlin"])
+        }
+    }
 }

@@ -95,7 +95,6 @@ class JsInterfaceGenerator : CodeGenerator() {
     private fun generateLoader(model: IdlModel) {
         val localClsName = firstCharToUpper("${model.name}Loader")
         moduleMemberName = firstCharToLower(model.name)
-        //loaderClassName = "$packagePrefix.$localClsName"
         loaderClassName = localClsName
         createOutFileWriter("$localClsName.kt").use { w ->
             w.writeHeader()
@@ -119,8 +118,8 @@ class JsInterfaceGenerator : CodeGenerator() {
                     fun loadModule() {
                         if (!isLoading) {
                             isLoading = true
-                            physxJsPromise.then { module: dynamic ->
-                                physxJs = module
+                            ${moduleMemberName}Promise.then { module: dynamic ->
+                                $moduleMemberName = module
                                 isLoaded = true
                                 onLoadListeners.forEach { it() }
                             }
@@ -141,7 +140,9 @@ class JsInterfaceGenerator : CodeGenerator() {
                         }
                     }
                     
-                    fun destroy(nativeObject: Any) = $moduleMemberName.destroy(nativeObject)
+                    fun destroy(nativeObject: Any) {
+                        $moduleMemberName.destroy(nativeObject)
+                    }
                 }
             """.trimIndent())
         }

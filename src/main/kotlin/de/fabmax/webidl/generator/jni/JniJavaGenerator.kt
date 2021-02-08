@@ -78,7 +78,7 @@ class JniJavaGenerator : CodeGenerator() {
             nativeObject.generateSource(w) {
                 append("""
                     protected long address = 0L;
-                    protected boolean isStackAllocated = false;
+                    protected boolean isExternallyAllocated = false;
                     
                     protected NativeObject(long address) {
                         this.address = address;
@@ -267,29 +267,30 @@ class JniJavaGenerator : CodeGenerator() {
         if (generateSimpleStackAllocators) {
             val pDocs = mutableMapOf("address" to "where the object is allocated")
             pDocs.putAll(paramDocs)
-            generateJavadoc(pDocs, "", w)
+            generateJavadoc(pDocs, "Stack allocated object of $name", w)
             w.append("""
                 public static $name malloc(long address$javaArgs) {
                     __placement_new_${ctorFunc.name}(address$callArgs);
                     $name mallocedObj = wrapPointer(address);
-                    mallocedObj.isStackAllocated = true;
+                    mallocedObj.isExternallyAllocated = true;
                     return mallocedObj;
                 }
             """.trimIndent().prependIndent("    ")).append("\n\n")
         }
         if (generateInterfaceStackAllocators) {
             val pDocs = mutableMapOf(
-                "allocator" to "object to use for allocation",
-                "allocate" to "method to call on allocator to obtain the target address"
+                "<T>" to "Allocator class, e.g. LWJGL's MemoryStack.",
+                "allocator" to "object to use for allocation, e.g. an instance of LWJGL's MemoryStack.",
+                "allocate" to "method to call on allocator to obtain the target address, e.g. MemoryStack::nmalloc."
             )
             pDocs.putAll(paramDocs)
-            generateJavadoc(pDocs, "", w)
+            generateJavadoc(pDocs, "Stack allocated object of $name", w)
             w.append("""
                 public static <T> $name malloc(T allocator, Allocator<T> allocate$javaArgs) {
                     long address = allocate.on(allocator, ALIGNOF, SIZEOF); 
                     __placement_new_${ctorFunc.name}(address$callArgs);
                     $name mallocedObj = wrapPointer(address);
-                    mallocedObj.isStackAllocated = true;
+                    mallocedObj.isExternallyAllocated = true;
                     return mallocedObj;
                 }
             """.trimIndent().prependIndent("    ")).append("\n\n")
@@ -323,8 +324,8 @@ class JniJavaGenerator : CodeGenerator() {
                 if (address == 0L) {
                     throw new IllegalStateException(this + " is already deleted");
                 }
-                if (isStackAllocated) {
-                    throw new IllegalStateException(this + " is stack allocated and cannot be deleted");
+                if (isExternallyAllocated) {
+                    throw new IllegalStateException(this + " is externally allocated and cannot be manually destroyed");
                 }
                 _delete_native_instance(address);
                 address = 0L;
@@ -374,7 +375,11 @@ class JniJavaGenerator : CodeGenerator() {
         val addressSig = if (attrib.isStatic) "" else "long address"
         val addressCall = if (attrib.isStatic) "" else "address"
 
-        generateJavadoc(emptyMap(), makeTypeDoc(javaType, attrib.decorators), w)
+        val paramDocs = mutableMapOf<String, String>()
+        if (attrib.type.isArray) {
+            paramDocs["index"] = "Array index"
+        }
+        generateJavadoc(paramDocs, makeTypeDoc(javaType, attrib.decorators), w)
         w.append("""
             public$staticMod ${javaType.javaType} $methodName($arrayModPub) {
                 ${javaType.boxedReturn("_$methodName($addressCall$arrayCallMod)", attrib.isNullable(this))};
@@ -400,7 +405,12 @@ class JniJavaGenerator : CodeGenerator() {
         if (nativeSig.isNotEmpty()) { nativeSig += ", "}
         nativeSig += "${javaType.internalType} value"
 
-        generateJavadoc(mapOf("value" to makeTypeDoc(javaType, attrib.decorators)), "", w)
+        val paramDocs = mutableMapOf<String, String>()
+        if (attrib.type.isArray) {
+            paramDocs["index"] = "Array index"
+        }
+        paramDocs["value"] = makeTypeDoc(javaType, attrib.decorators)
+        generateJavadoc(paramDocs, "", w)
         w.append("""
             public$staticMod void $methodName($arrayModPub${javaType.javaType} value) {
                 _$methodName($addressCall$arrayCallMod, ${javaType.unbox("value", attrib.isNullable(this))});
