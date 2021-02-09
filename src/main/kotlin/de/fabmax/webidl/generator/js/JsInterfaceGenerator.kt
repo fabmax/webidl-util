@@ -1,9 +1,11 @@
 package de.fabmax.webidl.generator.js
 
 import de.fabmax.webidl.generator.CodeGenerator
+import de.fabmax.webidl.generator.jni.JniJavaGenerator
 import de.fabmax.webidl.model.*
 import java.io.File
 import java.io.Writer
+import java.util.*
 
 class JsInterfaceGenerator : CodeGenerator() {
 
@@ -47,11 +49,14 @@ class JsInterfaceGenerator : CodeGenerator() {
     private val moduleLocation: String
         get() = "$loaderClassName.$moduleMemberName"
 
+    private lateinit var model: IdlModel
+
     init {
         outputDirectory = "./generated/ktJs"
     }
 
     override fun generate(model: IdlModel) {
+        this.model = model
         deleteDirectory(File(outputDirectory))
         generateLoader(model)
         for (pkg in model.collectPackages()) {
@@ -160,11 +165,11 @@ class JsInterfaceGenerator : CodeGenerator() {
         createOutFileWriter(outPath).use { w ->
             if (ktPkg.isNotEmpty()) {
                 w.writeHeader()
-                w.write("""
+                w.append("""
                     @file:Suppress("UnsafeCastFromDynamic", "ClassName", "FunctionName", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "unused")
 
                     package $ktPkg
-                """.trimIndent())
+                """.trimIndent()).append("\n\n")
                 getInterfacesByPackage(pkg).forEach {
                     it.generate(this, w)
                 }
@@ -176,7 +181,7 @@ class JsInterfaceGenerator : CodeGenerator() {
     }
 
     private fun IdlInterface.generate(model: IdlModel, w: Writer) {
-        w.write("\n\nexternal interface $name")
+        w.write("external interface $name")
         if (superInterfaces.isNotEmpty()) {
             w.write(" : ${superInterfaces.joinToString(", ")}")
         }
@@ -186,12 +191,24 @@ class JsInterfaceGenerator : CodeGenerator() {
             w.write(" {\n")
 
             attributes.forEach { attr ->
-                w.write("    var ${attr.name}: ${model.ktType(attr.type, attr.isNullable(this))}\n")
+                w.append("""
+                    /**
+                     * ${makeTypeDoc(attr.type, attr.decorators)}
+                     */
+                    var ${attr.name}: ${model.ktType(attr.type, attr.isNullable(this))}
+                """.trimIndent().prependIndent("    ")).append("\n")
             }
             if (attributes.isNotEmpty() && nonCtorFuns.isNotEmpty()) {
                 w.write("\n")
             }
             nonCtorFuns.forEach { func ->
+                // basic javadoc with some extended type info
+                val paramDocs = mutableMapOf<String, String>()
+                func.parameters.forEach { param -> paramDocs[param.name] = makeTypeDoc(param.type, param.decorators) }
+                val returnDoc = if (func.returnType.isVoid) "" else makeTypeDoc(func.returnType, func.decorators)
+                generateJavadoc(paramDocs, returnDoc, w)
+
+                // function declaration
                 val funcName = "$name.${func.name}"
                 val argsStr = func.parameters.joinToString(", ", transform = { "${it.name}: ${model.ktType(it.type, it.isNullable(this, funcName))}" })
                 val retType = if (func.returnType.typeName != "void") {
@@ -199,22 +216,29 @@ class JsInterfaceGenerator : CodeGenerator() {
                 } else {
                     ""
                 }
-                w.write("    fun ${func.name}($argsStr)$retType\n")
+                w.write("    fun ${func.name}($argsStr)$retType\n\n")
             }
 
             w.write("}")
         }
+        w.write("\n\n")
 
         functions.filter { it.name == name }.forEach { ctor ->
+            // basic javadoc with some extended type info
+            val paramDocs = mutableMapOf<String, String>()
+            ctor.parameters.forEach { param -> paramDocs[param.name] = makeTypeDoc(param.type, param.decorators) }
+            generateJavadoc(paramDocs, "", w, "")
+
+            // fake constructor function
             val funcName = "$name.${ctor.name}"
             val argsStr = ctor.parameters.joinToString(", ", transform = { "${it.name}: ${model.ktType(it.type, it.isNullable(this, funcName))}" })
             val argNames = ctor.parameters.joinToString(", ", transform = { it.name })
-            w.append('\n').append("""
+            w.append("""
                 fun $name($argsStr): $name {
                     val module = $moduleLocation
                     return js("new module.$name($argNames)")
                 }
-            """.trimIndent())
+            """.trimIndent()).append("\n\n")
         }
     }
 
@@ -229,7 +253,7 @@ class JsInterfaceGenerator : CodeGenerator() {
 
     private fun IdlEnum.generate(w: Writer) {
         if (values.isNotEmpty()) {
-            w.write("\n\nobject $name {\n")
+            w.write("object $name {\n")
             values.forEach { enumVal ->
                 var clampedName = enumVal
                 if (enumVal.contains("::")) {
@@ -237,8 +261,41 @@ class JsInterfaceGenerator : CodeGenerator() {
                 }
                 w.write("    val $clampedName: Int get() = $moduleLocation._emscripten_enum_${name}_$clampedName()\n")
             }
-            w.write("}")
+            w.write("}\n\n")
         }
+    }
+
+    private fun makeTypeDoc(type: IdlType, decorators: List<IdlDecorator> = emptyList()): String {
+        val decoString = when {
+            type.isEnum() -> " (enum)"
+            decorators.isNotEmpty() -> " ${decorators.joinToString(", ", "(", ")")}"
+            else -> ""
+        }
+        val typeString = when {
+            type.isComplexType -> "[${type.typeName}]"
+            else -> type.typeName
+        }
+        return "$typeString$decoString"
+    }
+
+    private fun generateJavadoc(paramDocs: Map<String, String>, returnDoc: String, w: Writer, indent: String = "    ") {
+        if (paramDocs.isNotEmpty() || returnDoc.isNotEmpty()) {
+            w.append("$indent/**\n")
+            if (paramDocs.isNotEmpty()) {
+                val maxNameLen = paramDocs.keys.map { it.length }.maxOf { it }
+                paramDocs.forEach { (name, doc) ->
+                    w.append(String.format(Locale.ENGLISH, "$indent * @param %-${maxNameLen}s %s\n", name, doc))
+                }
+            }
+            if (returnDoc.isNotEmpty()) {
+                w.append("$indent * @return $returnDoc\n")
+            }
+            w.append("$indent */\n")
+        }
+    }
+
+    private fun IdlType.isEnum(): Boolean {
+        return model.enums.any { it.name == typeName }
     }
 
     private fun IdlModel.ktType(type: IdlType, isNullable: Boolean): String {

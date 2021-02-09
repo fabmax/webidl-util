@@ -8,7 +8,7 @@ class JniNativeGenerator : CodeGenerator() {
 
     var packagePrefix = ""
 
-    val stackAllocatableClasses = mutableSetOf<String>()
+    val externallyAllocatableClasses = mutableSetOf<String>()
 
     private lateinit var model: IdlModel
 
@@ -54,7 +54,7 @@ class JniNativeGenerator : CodeGenerator() {
 
     private fun IdlInterface.generate(w: Writer) {
         w.write("\n// $name\n")
-        if (name in stackAllocatableClasses) {
+        if (name in externallyAllocatableClasses) {
             generateSizeOf(w)
             val ctors = functions.filter { it.name == name }
             val isOverloaded = ctors.size > 1

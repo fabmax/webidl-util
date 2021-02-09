@@ -14,7 +14,7 @@ class JniJavaGenerator : CodeGenerator() {
      * List of WebIDL interfaces / classes which should be stack allocatable (i.e. can be created
      * at a user-specified address). This can be beneficial for small high-frequency objects.
      */
-    val stackAllocatableClasses = mutableSetOf<String>()
+    val externallyAllocatableClasses = mutableSetOf<String>()
 
     /**
      * If true simple address-based allocation methods are generated for stack allocatable classes.
@@ -135,16 +135,22 @@ class JniJavaGenerator : CodeGenerator() {
             idlIf.functions.forEach { func ->
                 if (func.returnType.isComplexType) {
                     imports += func.returnType.typeName
+                } else if (func.returnType.isAnyOrVoidPtr) {
+                    imports += nativeObject.name
                 }
                 func.parameters.forEach { param ->
                     if (param.type.isComplexType) {
                         imports += param.type.typeName
+                    } else if (param.type.isAnyOrVoidPtr) {
+                        imports += nativeObject.name
                     }
                 }
             }
             idlIf.attributes.forEach { attrib ->
                 if (attrib.type.isComplexType) {
                     imports += attrib.type.typeName
+                } else if (attrib.type.isAnyOrVoidPtr) {
+                    imports += nativeObject.name
                 }
             }
 
@@ -188,7 +194,7 @@ class JniJavaGenerator : CodeGenerator() {
     private fun IdlInterface.generate(javaClass: JavaClass, w: Writer) = javaClass.generateSource(w) {
         val ctorFunctions = functions.filter { it.name == name }
 
-        if (name in stackAllocatableClasses) {
+        if (name in externallyAllocatableClasses) {
             generateSizeOf(w)
             w.append("    // Placed Constructors\n\n")
             ctorFunctions.forEach { ctor ->
@@ -265,33 +271,33 @@ class JniJavaGenerator : CodeGenerator() {
         }
 
         if (generateSimpleStackAllocators) {
-            val pDocs = mutableMapOf("address" to "where the object is allocated")
+            val pDocs = mutableMapOf("address" to "Pre-allocated memory, where the object is created.")
             pDocs.putAll(paramDocs)
             generateJavadoc(pDocs, "Stack allocated object of $name", w)
             w.append("""
-                public static $name malloc(long address$javaArgs) {
+                public static $name createAt(long address$javaArgs) {
                     __placement_new_${ctorFunc.name}(address$callArgs);
-                    $name mallocedObj = wrapPointer(address);
-                    mallocedObj.isExternallyAllocated = true;
-                    return mallocedObj;
+                    $name createdObj = wrapPointer(address);
+                    createdObj.isExternallyAllocated = true;
+                    return createdObj;
                 }
             """.trimIndent().prependIndent("    ")).append("\n\n")
         }
         if (generateInterfaceStackAllocators) {
             val pDocs = mutableMapOf(
                 "<T>" to "Allocator class, e.g. LWJGL's MemoryStack.",
-                "allocator" to "object to use for allocation, e.g. an instance of LWJGL's MemoryStack.",
-                "allocate" to "method to call on allocator to obtain the target address, e.g. MemoryStack::nmalloc."
+                "allocator" to "Object to use for allocation, e.g. an instance of LWJGL's MemoryStack.",
+                "allocate" to "Method to call on allocator to obtain the target address, e.g. MemoryStack::nmalloc."
             )
             pDocs.putAll(paramDocs)
             generateJavadoc(pDocs, "Stack allocated object of $name", w)
             w.append("""
-                public static <T> $name malloc(T allocator, Allocator<T> allocate$javaArgs) {
+                public static <T> $name createAt(T allocator, Allocator<T> allocate$javaArgs) {
                     long address = allocate.on(allocator, ALIGNOF, SIZEOF); 
                     __placement_new_${ctorFunc.name}(address$callArgs);
-                    $name mallocedObj = wrapPointer(address);
-                    mallocedObj.isExternallyAllocated = true;
-                    return mallocedObj;
+                    $name createdObj = wrapPointer(address);
+                    createdObj.isExternallyAllocated = true;
+                    return createdObj;
                 }
             """.trimIndent().prependIndent("    ")).append("\n\n")
         }
