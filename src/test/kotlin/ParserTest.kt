@@ -1,4 +1,4 @@
-import de.fabmax.webidl.generator.jni.JniJavaGenerator
+import de.fabmax.webidl.generator.jni.java.JniJavaGenerator
 import de.fabmax.webidl.generator.jni.nat.JniNativeGenerator
 import de.fabmax.webidl.generator.js.JsInterfaceGenerator
 import de.fabmax.webidl.parser.WebIdlParser
@@ -23,8 +23,9 @@ class ParserTest {
         Assert.assertTrue(model.interfaces[0].attributes.size == 1)
         Assert.assertEquals(model.interfaces[0].attributes[0].name, "someAttribute")
         Assert.assertTrue(model.interfaces[0].hasDecorator("NoDelete"))
-        Assert.assertEquals(model.interfaces[0].getDecoratorValue("Prefix", ""), "namespace::")
+        Assert.assertEquals(model.interfaces[0].getDecoratorValue("Prefix", ""), "someNamespace::")
 
+        Assert.assertEquals(model.interfaces[3].name, "JavaErrorCallback")
         Assert.assertEquals(model.interfaces[3].getDecoratorValue("JSImplementation", ""), "ErrorCallback")
     }
 
@@ -49,7 +50,7 @@ class ParserTest {
     }
 
     @Test
-    fun generatorJniJaqvaTest() {
+    fun generatorJniJavaTest() {
         val inStream = ParserTest::class.java.classLoader.getResourceAsStream("test.idl")!!
         val model = WebIdlParser().parse(inStream)
 

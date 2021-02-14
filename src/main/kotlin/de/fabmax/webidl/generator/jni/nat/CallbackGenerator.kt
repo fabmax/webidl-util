@@ -87,9 +87,10 @@ internal class CallbackGenerator(val model: IdlModel) {
         val out = StringBuilder()
         functions.filter { it.name != name }.forEach { cbFunc ->
             val env = JniNativeGenerator.NativeFuncRenderer.ENV
-            val returnType = cbFunc.getNativeType(model).nativeType()
-            val params = cbFunc.parameters.joinToString(", ") { "${it.getNativeType(model).nativeType()} ${it.name}" }
-            var callParams = cbFunc.parameters.joinToString(", ") { it.getNativeType(model).castNativeToJni(it.name) }
+            val returnType = cbFunc.getNativeType(model)
+            val paramsToTypes = cbFunc.parameters.zip(cbFunc.parameters.map { it.getNativeType(model) })
+            val params = paramsToTypes.joinToString(", ") { (p, t) -> "${t.nativeType()} ${p.name}" }
+            var callParams = paramsToTypes.joinToString(", ") { (p, t) -> t.castNativeToJni(p.name) }
             if (callParams.isNotEmpty()) {
                 callParams = ", $callParams"
             }
@@ -108,15 +109,18 @@ internal class CallbackGenerator(val model: IdlModel) {
                 "unsigned long" -> "CallIntMethod"
                 "unsigned long long" -> "CallLongMethod"
                 "void" -> "CallVoidMethod"
-                // any, VoidPtr, NativeObject
-                else -> "CallLongMethod"
+                else -> "CallLongMethod"    // any, VoidPtr, NativeObject
             }
 
+            var call = "$env->$callTypedMethod(javaGlobalRef, ${cbFunc.name}MethodId$callParams)"
+            if (!cbFunc.returnType.isVoid) {
+                call = returnType.castJniToNative(call)
+            }
 
             out.append('\n').append("""
-                virtual $returnType ${cbFunc.name}($params) {
+                virtual ${returnType.nativeType()} ${cbFunc.name}($params) {
                     JNIEnv* $env = jniThreadEnv.getEnv();
-                    $env->$callTypedMethod(javaGlobalRef, ${cbFunc.name}MethodId$callParams);
+                    $call;
                 }
             """.trimIndent().prependIndent(20)).append('\n')
         }
@@ -130,7 +134,7 @@ internal class CallbackGenerator(val model: IdlModel) {
             if (i > 0) {
                 out.append(indent(24))
             }
-            out.append("${cbFunc.name}MethodId = env->GetMethodID(javaClass, \"${cbFunc.name}\", \"${JavaTypeSignature.getJavaFunctionSignature(cbFunc, model)}\");")
+            out.append("${cbFunc.name}MethodId = env->GetMethodID(javaClass, \"_${cbFunc.name}\", \"${JavaTypeSignature.getJavaFunctionSignature(cbFunc, model)}\");")
             if (i < cbFuncs.lastIndex) { out.append('\n') }
         }
         return out.toString()

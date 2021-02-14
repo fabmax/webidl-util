@@ -13,11 +13,15 @@ The two generator targets are especially useful in the context of Kotlin multi-p
 rely on the same library APIs for JVM and javascript platforms. However, the generated code can of course also
 be used in non-multiplatform projects. The JNI code can even be used in plain Java without any Kotlin.
 
+Although this is still work in progress, I use this to generate JNI bindings for Nvidia PhysX:
+[physx-jni](https://github.com/fabmax/physx-jni) with ~170 generated java classes and no manual tweaking.
+So it's arguably in a state where you could actually use it.
+
 ## How to use
 This library is published to maven central, so you can easily add ít to your (gradle-)dependencies:
 ```
 dependencies {
-    implementation("de.fabmax:webidl-util:0.6.0")
+    implementation("de.fabmax:webidl-util:0.7.0")
 }
 ```
 
@@ -67,7 +71,6 @@ This is a work-in-progress project, and I implement features as I need them, so 
 - No known issues.
 
 ### JNI Generator
-- Callbacks from native to Java are not yet supported.
 - Array values are only supported for attributes (not for function arguments / return values).
 - Passing java strings into a native API leaks memory: On the native side the string is copied into a char-array,
   which is never released.

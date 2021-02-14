@@ -73,44 +73,44 @@ internal class NativeType(model: IdlModel, val idlType: IdlType, val isValue: Bo
             // enums are integer constants
             isEnum -> idlType.typeName
             // non primitive pointer/ reference / value
-            else -> "$typePrefix${idlType.typeName}$typeSuffix"
+            else -> "${typePrefix}${prefix}${idlType.typeName}$typeSuffix"
         }
     }
 
-    fun castJniToNative(inVal: String): String {
+    fun castJniToNative(value: String): String {
         return when {
             // nothing to cast, types should match
-            isPrimitive -> inVal
-            // inVal is an int which is casted into the corresponding enum
-            isEnum -> "(${idlType.typeName}) $inVal"
+            isPrimitive -> value
+            // value is an int which is casted into the corresponding enum
+            isEnum -> "(${idlType.typeName}) $value"
 
             // fixme: this is a memory leak: chars allocated by GetStringUTFChars() will never be released, but we
             //  don't know when it's safe to release them, so for now let's hope it won't be a big problem
-            idlType.isString -> "${JniNativeGenerator.NativeFuncRenderer.ENV}->GetStringUTFChars($inVal, 0)"
+            idlType.isString -> "${JniNativeGenerator.NativeFuncRenderer.ENV}->GetStringUTFChars($value, 0)"
 
-            idlType.typeName == "VoidPtr" -> "(void*) $inVal"
-            idlType.typeName == "any" -> "(void*) $inVal"
+            idlType.typeName == "VoidPtr" -> "(void*) $value"
+            idlType.typeName == "any" -> "(void*) $value"
 
-            // objects are given as a pointer insider a jlong
-            isValue || isRef -> "*(($jniTypeName*) $inVal)"
+            // objects are given as a pointer inside a jlong
+            isValue || isRef -> "*(($jniTypeName*) $value)"
 
-            else -> "($jniTypeName*) $inVal"
+            else -> "($jniTypeName*) $value"
         }
     }
 
-    fun castNativeToJni(outVal: String): String {
+    fun castNativeToJni(value: String): String {
         return when {
-            // explicitly cast to type to avoid warnings on size_t to int conversions
-            isPrimitive -> "(${idlPrimitiveTypeMapJni[idlType.typeName]}) $outVal"
-            // inVal should be an int which is casted into the corresponding enum
-            isEnum -> "($jniTypeName) $outVal"
+            // explicitly cast to type to avoid warnings on signed / unsigned integer conversions
+            isPrimitive -> "(${idlPrimitiveTypeMapJni[idlType.typeName]}) $value"
+            // value is an enum which is casted into an int
+            isEnum -> "(jint) $value"
 
-            idlType.typeName == "DOMString" -> "${JniNativeGenerator.NativeFuncRenderer.ENV}->NewStringUTF($outVal)"
+            idlType.typeName == "DOMString" -> "${JniNativeGenerator.NativeFuncRenderer.ENV}->NewStringUTF($value)"
 
             // objects are returned as a pointer insider a jlong
-            isValue || isRef -> "(jlong) &$outVal"
+            isValue || isRef -> "(jlong) &$value"
 
-            else -> "(jlong) $outVal"
+            else -> "(jlong) $value"
         }
     }
 

@@ -16,12 +16,18 @@ AnotherInterface implements AnInterface;
 [Prefix="someNamespace::"]
 interface ErrorCallback {
     boolean reportError(long code, DOMString message);
-    unsigned long someOtherMethod();
+    AnotherInterface someOtherMethod();
+};
+
+enum ErrorCode {
+    "INFO",
+    "WARN",
+    "ERROR"
 };
 
 [JSImplementation="ErrorCallback"]
 interface JavaErrorCallback {
     void JavaErrorCallback();
-    boolean reportError(long code, DOMString message);
-    unsigned long someOtherMethod();
+    void reportError(ErrorCode code, DOMString message);
+    AnotherInterface someOtherMethod(AnInterface anInterface);
 };

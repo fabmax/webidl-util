@@ -1,7 +1,6 @@
-import java.io.File
-import java.io.FileInputStream
-import java.util.Properties
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.io.FileInputStream
+import java.util.*
 
 plugins {
     kotlin("jvm") version "1.4.30"
@@ -11,7 +10,7 @@ plugins {
 }
 
 group = "de.fabmax"
-version = "0.6.1-SNAPSHOT"
+version = "0.7.0"
 
 repositories {
     mavenCentral()

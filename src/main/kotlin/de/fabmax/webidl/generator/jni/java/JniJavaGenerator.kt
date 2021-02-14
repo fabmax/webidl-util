@@ -1,6 +1,8 @@
-package de.fabmax.webidl.generator.jni
+package de.fabmax.webidl.generator.jni.java
 
 import de.fabmax.webidl.generator.CodeGenerator
+import de.fabmax.webidl.generator.indent
+import de.fabmax.webidl.generator.prependIndent
 import de.fabmax.webidl.model.*
 import java.io.File
 import java.io.Writer
@@ -69,35 +71,54 @@ class JniJavaGenerator : CodeGenerator() {
     }
 
     private fun generateFrameworkClasses() {
-        nativeObject = JavaClass("NativeObject", false, "", packagePrefix).apply {
+        nativeObject = JavaClass(NATIVE_OBJECT_NAME, false, "", packagePrefix).apply {
             protectedDefaultContructor = true
             generatePointerWrapMethods = false
             staticCode = onClassLoad
         }
-        createOutFileWriter(nativeObject.fileName).use { w ->
-            nativeObject.generateSource(w) {
-                append("""
-                    protected long address = 0L;
-                    protected boolean isExternallyAllocated = false;
-                    
-                    protected NativeObject(long address) {
-                        this.address = address;
+        nativeObject.generateSource(createOutFileWriter(nativeObject.fileName)) {
+            append("""
+                protected long address = 0L;
+                protected boolean isExternallyAllocated = false;
+                
+                protected NativeObject(long address) {
+                    this.address = address;
+                }
+                
+                public static NativeObject wrapPointer(long address) {
+                    return new NativeObject(address);
+                }
+                
+                public long getAddress() {
+                    return address;
+                }
+                
+                @FunctionalInterface
+                public interface Allocator<T> {
+                    long on(T allocator, int alignment, int size);
+                }
+            """.trimIndent().prependIndent(4)).append('\n')
+        }
+
+        val jniThreadManager = JavaClass("JniThreadManager", false, "", packagePrefix).apply {
+            protectedDefaultContructor = false
+            generatePointerWrapMethods = false
+            staticCode = onClassLoad
+            importFqns += "java.util.concurrent.atomic.AtomicBoolean"
+        }
+        jniThreadManager.generateSource(createOutFileWriter(jniThreadManager.fileName)) {
+            append("""
+                private static AtomicBoolean isInitialized = new AtomicBoolean(false);
+                private static boolean isInitSuccess = false;
+                
+                public static boolean init() {
+                    if (!isInitialized.getAndSet(true)) {
+                        isInitSuccess = _init();
                     }
-                    
-                    public static NativeObject wrapPointer(long address) {
-                        return new NativeObject(address);
-                    }
-                    
-                    public long getAddress() {
-                        return address;
-                    }
-                    
-                    @FunctionalInterface
-                    public interface Allocator<T> {
-                        long on(T allocator, int alignment, int size);
-                    }
-                """.trimIndent().prependIndent("    ")).append('\n')
-            }
+                    return isInitSuccess;
+                }
+                private static native boolean _init();
+            """.trimIndent().prependIndent(4))
         }
     }
 
@@ -109,7 +130,7 @@ class JniJavaGenerator : CodeGenerator() {
         for (idlPkg in model.collectPackages()) {
             for (idlIf in model.getInterfacesByPackage(idlPkg)) {
                 typeMap[idlIf.name] = JavaClass(idlIf.name, false, idlPkg, packagePrefix).apply {
-                    protectedDefaultContructor = !idlIf.hasDefaultConstructor()
+                    protectedDefaultContructor = !idlIf.hasDefaultConstructor() && !idlIf.isCallback()
                     generatePointerWrapMethods = true
                     // no need to include static onClassLoad code here as it is inserted into NativeObject, which
                     // is the super class of all IdlInterfaces
@@ -129,7 +150,7 @@ class JniJavaGenerator : CodeGenerator() {
             val imports = mutableSetOf<String>()
 
             idlIf.superInterfaces.forEach { imports += it }
-            if (idlIf.superInterfaces.isEmpty()) {
+            if (idlIf.superInterfaces.isEmpty() && !idlIf.isCallback()) {
                 imports += nativeObject.name
             }
             idlIf.functions.forEach { func ->
@@ -155,21 +176,37 @@ class JniJavaGenerator : CodeGenerator() {
             }
 
             val javaClass = typeMap[idlIf.name] ?: throw IllegalStateException("Unknown idl type: ${idlIf.name}")
-            if (idlIf.superInterfaces.isEmpty()) {
-                // every generated class derives from NativeObject
-                javaClass.superClass = nativeObject
-            } else {
-                if (idlIf.superInterfaces.size > 1) {
-                    System.err.println("warning: ${idlIf.name} implements ${idlIf.superInterfaces}")
-                    System.err.println("warning: multiple super interfaces are not supported!")
+            when {
+                idlIf.isCallback() -> {
+                    // callback classes implement the type specified by JSImplementation decorator
+                    val superType = idlIf.getDecoratorValue("JSImplementation", "")
+                    javaClass.superClass = typeMap[superType] ?: throw IllegalStateException("Unknown JSImplementation type: $superType")
+                    if (idlIf.superInterfaces.isNotEmpty()) {
+                        System.err.println("warning: ${idlIf.name} is callback implementation of $superType and additionally implements ${idlIf.superInterfaces}")
+                        System.err.println("warning: multiple super interfaces are not supported!")
+                    }
                 }
-                javaClass.superClass = typeMap[idlIf.superInterfaces[0]] ?: throw IllegalStateException("Unknown idl type: ${idlIf.superInterfaces[0]}")
+                idlIf.superInterfaces.isEmpty() -> {
+                    // every generated class derives from NativeObject
+                    javaClass.superClass = nativeObject
+                }
+                else -> {
+                    if (idlIf.superInterfaces.size > 1) {
+                        System.err.println("warning: ${idlIf.name} implements ${idlIf.superInterfaces}")
+                        System.err.println("warning: multiple super interfaces are not supported!")
+                    }
+                    javaClass.superClass = typeMap[idlIf.superInterfaces[0]] ?: throw IllegalStateException("Unknown idl type: ${idlIf.superInterfaces[0]}")
+                }
             }
 
             imports.forEach {
                 javaClass.imports += typeMap[it] ?: throw IllegalStateException("Unknown idl type: $it")
             }
         }
+    }
+
+    private fun IdlInterface.isCallback(): Boolean {
+        return hasDecorator("JSImplementation")
     }
 
     private fun IdlInterface.hasDefaultConstructor(): Boolean {
@@ -179,56 +216,124 @@ class JniJavaGenerator : CodeGenerator() {
     private fun IdlModel.generatePackage(idlPkg: String) {
         getInterfacesByPackage(idlPkg).forEach { idlIf ->
             val javaClass = typeMap[idlIf.name] ?: throw IllegalStateException("Unknown idl type: $name")
-            createOutFileWriter(javaClass.path).use {
-                idlIf.generate(javaClass, it)
+            if (idlIf.isCallback()) {
+                // generate callback class
+                idlIf.generateCallback(javaClass)
+            } else {
+                // generate regular class
+                idlIf.generate(javaClass)
             }
         }
         getEnumsByPackage(idlPkg).forEach { idlEn ->
             val javaClass = typeMap[idlEn.name] ?: throw IllegalStateException("Unknown idl type: $name")
-            createOutFileWriter(javaClass.path).use {
-                idlEn.generate(javaClass, it)
+            idlEn.generate(javaClass)
+        }
+    }
+
+    private fun IdlInterface.generateCallback(javaClass: JavaClass) = javaClass.generateSource(createOutFileWriter(javaClass.path)) {
+        append("""
+            protected ${javaClass.name}() {
+                address = _${javaClass.name}();
+            }
+            private native long _${javaClass.name}();
+            
+            // Destructor
+        """.trimIndent().prependIndent(4)).append("\n\n")
+        generateDestructor(this)
+
+        val nonCtorFunctions = functions.filter { it.name != name }
+        if (nonCtorFunctions.isNotEmpty()) {
+            append("    // Functions\n\n")
+            nonCtorFunctions.forEach { func ->
+                val nativeToJavaParams = func.parameters.zip(func.parameters.map { JavaType(it.type) })
+                val returnType = JavaType(func.returnType)
+                val returnPrefix = if (func.returnType.isVoid) "" else "return "
+                val returnSuffix = if (func.returnType.isComplexType || func.returnType.isAnyOrVoidPtr) ".getAddress()" else ""
+                val internalParams = nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
+                val params = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
+                val callParams = nativeToJavaParams.joinToString { (nat, java) ->
+                    if (nat.type.isPrimitive || java.isIdlEnum) {
+                        nat.name
+                    } else {
+                        "${java.javaType}.wrapPointer(${nat.name})"
+                    }
+                }
+
+                val defaultReturnVal = if (func.returnType.isVoid) {
+                    " "
+                } else if (func.returnType.isPrimitive) {
+                    val returnVal = when (func.returnType.typeName) {
+                        "boolean" -> "false;"
+                        "float" -> "0.0f;"
+                        "double" -> "0.0;"
+                        "DOMString" -> "\"\";"
+                        else -> "0;"
+                    }
+                    "\n${indent(24)}return $returnVal;\n${indent(20)}"
+                } else {
+                    "\n${indent(24)}return null;\n${indent(20)}"
+                }
+
+                val paramDocs = mutableMapOf<String, String>()
+                nativeToJavaParams.forEach { (nat, java) ->
+                    paramDocs[nat.name] = makeTypeDoc(java, nat.decorators)
+                }
+                val returnDoc = if (returnType.idlType.isVoid) "" else makeTypeDoc(returnType, func.decorators)
+
+                append("""
+                    /*
+                     * Called from native code
+                     */
+                    private ${returnType.internalType} _${func.name}($internalParams) {
+                        $returnPrefix${func.name}($callParams)$returnSuffix;
+                    }""".trimIndent().prependIndent(4)).append("\n\n")
+                    
+                generateJavadoc(paramDocs, returnDoc, this)
+                append("""
+                    public ${returnType.javaType} ${func.name}($params) {$defaultReturnVal}
+                """.trimIndent().prependIndent(4)).append("\n\n")
             }
         }
     }
 
-    private fun IdlInterface.generate(javaClass: JavaClass, w: Writer) = javaClass.generateSource(w) {
+    private fun IdlInterface.generate(javaClass: JavaClass) = javaClass.generateSource(createOutFileWriter(javaClass.path)) {
         val ctorFunctions = functions.filter { it.name == name }
 
         if (name in externallyAllocatableClasses) {
-            generateSizeOf(w)
-            w.append("    // Placed Constructors\n\n")
+            generateSizeOf(this)
+            append("    // Placed Constructors\n\n")
             ctorFunctions.forEach { ctor ->
-                generatePlacedConstructor(ctor, w)
+                generatePlacedConstructor(ctor, this)
             }
         }
 
         if (ctorFunctions.isNotEmpty()) {
-            w.append("    // Constructors\n\n")
+            append("    // Constructors\n\n")
             ctorFunctions.forEach { ctor ->
-                generateConstructor(ctor, w)
+                generateConstructor(ctor, this)
             }
         }
 
         if (!hasDecorator("NoDelete")) {
-            w.append("    // Destructor\n\n")
-            generateDestructor(w)
+            append("    // Destructor\n\n")
+            generateDestructor(this)
         }
 
         if (attributes.isNotEmpty()) {
-            w.append("    // Attributes\n\n")
+            append("    // Attributes\n\n")
             attributes.forEach { attrib ->
-                generateGet(attrib, w)
+                generateGet(attrib, this)
                 if (!attrib.isReadonly) {
-                    generateSet(attrib, w)
+                    generateSet(attrib, this)
                 }
             }
         }
 
         val nonCtorFunctions = functions.filter { it.name != name }
-            if (nonCtorFunctions.isNotEmpty()) {
-                w.append("    // Functions\n\n")
+        if (nonCtorFunctions.isNotEmpty()) {
+            append("    // Functions\n\n")
             nonCtorFunctions.forEach { func ->
-                generateFunction(func, w)
+                generateFunction(func, this)
             }
         }
     }
@@ -246,7 +351,7 @@ class JniJavaGenerator : CodeGenerator() {
             private static native int __sizeOf();
             public static final int SIZEOF = __sizeOf();
             public static final int ALIGNOF = 8;
-        """.trimIndent().prependIndent("    ")).append("\n\n")
+        """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
     private fun IdlInterface.generatePlacedConstructor(ctorFunc: IdlFunction, w: Writer) {
@@ -281,7 +386,7 @@ class JniJavaGenerator : CodeGenerator() {
                     createdObj.isExternallyAllocated = true;
                     return createdObj;
                 }
-            """.trimIndent().prependIndent("    ")).append("\n\n")
+            """.trimIndent().prependIndent(4)).append("\n\n")
         }
         if (generateInterfaceStackAllocators) {
             val pDocs = mutableMapOf(
@@ -299,7 +404,7 @@ class JniJavaGenerator : CodeGenerator() {
                     createdObj.isExternallyAllocated = true;
                     return createdObj;
                 }
-            """.trimIndent().prependIndent("    ")).append("\n\n")
+            """.trimIndent().prependIndent(4)).append("\n\n")
         }
         w.append("    private static native void __placement_new_${ctorFunc.name}(long address$nativeArgs);\n\n")
     }
@@ -321,7 +426,7 @@ class JniJavaGenerator : CodeGenerator() {
                 address = _${ctorFunc.name}($callArgs);
             }
             private static native long _${ctorFunc.name}($nativeArgs);
-        """.trimIndent().prependIndent("    ")).append("\n\n")
+        """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
     private fun generateDestructor(w: Writer) {
@@ -337,7 +442,7 @@ class JniJavaGenerator : CodeGenerator() {
                 address = 0L;
             }
             private static native long _delete_native_instance(long address);
-        """.trimIndent().prependIndent("    ")).append("\n\n")
+        """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
     private fun IdlInterface.generateFunction(func: IdlFunction, w: Writer) {
@@ -367,7 +472,7 @@ class JniJavaGenerator : CodeGenerator() {
                 ${returnType.boxedReturn("_${func.name}($callArgs)", "$name.${func.name}" in nullableReturnValues)};
             }
             private static native ${returnType.internalType} _${func.name}($nativeArgs);
-        """.trimIndent().prependIndent("    ")).append("\n\n")
+        """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
     private fun IdlInterface.generateGet(attrib: IdlAttribute, w: Writer) {
@@ -391,7 +496,7 @@ class JniJavaGenerator : CodeGenerator() {
                 ${javaType.boxedReturn("_$methodName($addressCall$arrayCallMod)", attrib.isNullable(this))};
             }
             private static native ${javaType.internalType} _$methodName($addressSig$arrayModPriv);
-        """.trimIndent().prependIndent("    ")).append("\n\n")
+        """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
     private fun IdlInterface.generateSet(attrib: IdlAttribute, w: Writer) {
@@ -422,7 +527,7 @@ class JniJavaGenerator : CodeGenerator() {
                 _$methodName($addressCall$arrayCallMod, ${javaType.unbox("value", attrib.isNullable(this))});
             }
             private static native void _$methodName($nativeSig);
-        """.trimIndent().prependIndent("    ")).append("\n\n")
+        """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
     private fun makeTypeDoc(javaType: JavaType, decorators: List<IdlDecorator> = emptyList()): String {
@@ -432,8 +537,8 @@ class JniJavaGenerator : CodeGenerator() {
             else -> ""
         }
         val typeString = when {
-            javaType.idlType.isComplexType -> "{@link ${javaType.idlType.typeName}}"
-            else -> javaType.idlType.typeName
+            javaType.idlType.isComplexType -> "WebIDL type: {@link ${javaType.idlType.typeName}}"
+            else -> "WebIDL type: ${javaType.idlType.typeName}"
         }
         return "$typeString$decoString"
     }
@@ -454,151 +559,21 @@ class JniJavaGenerator : CodeGenerator() {
         }
     }
 
-    private fun IdlEnum.generate(javaClass: JavaClass, w: Writer) = javaClass.generateSource(w) {
+    private fun IdlEnum.generate(javaClass: JavaClass) = javaClass.generateSource(createOutFileWriter(javaClass.path)) {
         unprefixedValues.forEach { enumVal ->
-            w.write("    public static final int $enumVal = _get$enumVal();\n")
+            write("    public static final int $enumVal = _get$enumVal();\n")
         }
-        w.write("\n")
+        write("\n")
         unprefixedValues.forEach { enumVal ->
-            w.write("    private static native int _get$enumVal();\n")
+            write("    private static native int _get$enumVal();\n")
         }
     }
 
-    private class JavaClass(val name: String, val isEnum: Boolean, idlPkg: String, packagePrefix: String) {
-        val javaPkg: String
-        val fqn: String
-        val fileName = "$name.java"
-
-        // only use idlPkg instead of prefixed / full java package for path construction
-        // this way the output directory can point into a package within a project and does not need to target the
-        // top-level source directory of a project
-        val path = if (idlPkg.isEmpty()) fileName else File(idlPkg.replace('.', '/'), fileName).path
-
-        var visibility = "public"
-        var modifier = ""
-        var protectedDefaultContructor = true
-        var generatePointerWrapMethods = true
-        var staticCode = ""
-
-        var superClass: JavaClass? = null
-        val imports = mutableListOf<JavaClass>()
-
-        init {
-            javaPkg = when {
-                packagePrefix.isEmpty() -> idlPkg
-                idlPkg.isEmpty() -> packagePrefix
-                else -> "$packagePrefix.$idlPkg"
-            }
-            fqn = if (javaPkg.isEmpty()) name else "$javaPkg.$name"
-        }
-
-        fun generatePackage(w: Writer) {
-            if (javaPkg.isNotEmpty()) {
-                w.write("package $javaPkg;\n\n")
-            }
-        }
-
-        fun generateImports(w: Writer) {
-            imports.filter { javaPkg != it.javaPkg }.sortedBy { it.fqn }.forEach { import ->
-                w.write("import ${import.fqn};\n")
-            }
-            w.write("\n")
-        }
-
-        fun generateClassStart(w: Writer) {
-            w.write("$visibility ")
-            if (modifier.isNotEmpty()) {
-                w.write("$modifier ")
-            }
-            w.write("class $name ")
-            superClass?.let { w.write("extends ${it.name} ") }
-            w.write("{\n\n")
-
-            if (staticCode.isNotEmpty()) {
-                w.write("    static {\n")
-                staticCode.lines().forEach {
-                    w.write("        ${it.trim()}\n")
-                }
-                w.write("    }\n\n")
-            }
-
-            if (protectedDefaultContructor) {
-                w.append("""
-                    protected $name() { }
-                """.trimIndent().prependIndent("    ")).append("\n\n")
-            }
-
-            if (generatePointerWrapMethods) {
-                w.append("""
-                    public static $name wrapPointer(long address) {
-                        return new $name(address);
-                    }
-                    
-                    protected $name(long address) {
-                        super(address);
-                    }
-                """.trimIndent().prependIndent("    ")).append("\n\n")
-            }
-        }
-
-        fun generateSource(w: Writer, body: Writer.() -> Unit) {
-            generatePackage(w)
-            generateImports(w)
-            generateClassStart(w)
-            body(w)
-            w.append("}\n")
-        }
-    }
-
-    private inner class JavaType(val idlType: IdlType) {
-        val internalType: String
-        val javaType: String
-        val isIdlEnum: Boolean
-            get() = typeMap[idlType.typeName]?.isEnum ?: false
-
-        private val requiresMarshalling: Boolean
-            get() = internalType != javaType
-
-        init {
-            when {
-                idlType.isPrimitive -> {
-                    internalType = idlPrimitiveTypeMap[idlType.typeName] ?: throw IllegalStateException("Unknown idl type: ${idlType.typeName}")
-                    javaType = internalType
-                }
-                idlType.isAnyOrVoidPtr -> {
-                    internalType = "long"
-                    javaType = nativeObject.name
-                }
-                isIdlEnum -> {
-                    internalType = "int"
-                    javaType = "int"
-                }
-                else -> {
-                    internalType = "long"
-                    javaType = idlType.typeName
-                }
-            }
-        }
-
-        fun boxedReturn(value: String, isNullable: Boolean = false): String {
-            return when {
-                idlType.isVoid -> value
-                isNullable && requiresMarshalling -> "long tmp = $value;\n                return (tmp != 0L ? $javaType.wrapPointer(tmp) : null)"
-                requiresMarshalling -> "return $javaType.wrapPointer($value)"
-                else -> "return $value"
-            }
-        }
-
-        fun unbox(value: String, isNullable: Boolean = false): String {
-            return when {
-                isNullable && requiresMarshalling -> "($value != null ? $value.getAddress() : 0L)"
-                requiresMarshalling -> "$value.getAddress()"
-                else -> value
-            }
-        }
-    }
+    private fun JavaType(idlType: IdlType) = JavaType(idlType, typeMap[idlType.typeName]?.isEnum ?: false)
 
     companion object {
+        const val NATIVE_OBJECT_NAME = "NativeObject"
+
         val idlPrimitiveTypeMap = mapOf(
             "boolean" to "boolean",
             "float" to "float",

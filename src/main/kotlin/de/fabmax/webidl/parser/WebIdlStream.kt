@@ -123,7 +123,7 @@ class WebIdlStream {
         }
         val type = IdlType(typeName, isArray)
         if (!type.isValid()) {
-            throw WebIdlParser.ParserException("Invalid Type: $type")
+            throw WebIdlParser.ParserException("Invalid Type: \"$type\"")
         }
         return type
     }

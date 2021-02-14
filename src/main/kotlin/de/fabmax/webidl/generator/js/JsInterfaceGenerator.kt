@@ -1,7 +1,6 @@
 package de.fabmax.webidl.generator.js
 
 import de.fabmax.webidl.generator.CodeGenerator
-import de.fabmax.webidl.generator.jni.JniJavaGenerator
 import de.fabmax.webidl.model.*
 import java.io.File
 import java.io.Writer
@@ -272,8 +271,8 @@ class JsInterfaceGenerator : CodeGenerator() {
             else -> ""
         }
         val typeString = when {
-            type.isComplexType -> "[${type.typeName}]"
-            else -> type.typeName
+            type.isComplexType -> "WebIDL type: [${type.typeName}]"
+            else -> "WebIDL type: ${type.typeName}"
         }
         return "$typeString$decoString"
     }
