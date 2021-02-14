@@ -3,12 +3,15 @@ package de.fabmax.webidl.model
 data class IdlType(val typeName: String, val isArray: Boolean) {
 
     val isVoid = typeName == "void"
+    val isString = typeName == "DOMString"
     val isVoidPtr = typeName == "VoidPtr"
     val isAny = typeName == "any"
-    val isAnyOrVoidPtr = isVoidPtr || isAny
 
-    val isPrimitive = typeName in basicTypes && typeName != "any" && typeName != "VoidPtr"
+    val isAnyOrVoidPtr = isVoidPtr || isAny
+    val isPrimitive = typeName in basicTypes && !isAnyOrVoidPtr
     val isComplexType = !isPrimitive && !isAnyOrVoidPtr
+
+    fun isEnum(model: IdlModel) = model.enums.any { it.name == typeName }
 
     fun isValid(): Boolean {
         return isValidTypeName(typeName)

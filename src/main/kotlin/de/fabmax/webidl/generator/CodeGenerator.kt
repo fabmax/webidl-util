@@ -43,3 +43,7 @@ abstract class CodeGenerator {
         return str[0].toLowerCase() + str.substring(1)
     }
 }
+
+internal fun indent(indent: Int) = String.format("%${indent}s", "")
+
+internal fun String.prependIndent(indent: Int) = prependIndent(indent(indent))

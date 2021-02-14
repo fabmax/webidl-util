@@ -1,5 +1,5 @@
 import de.fabmax.webidl.generator.jni.JniJavaGenerator
-import de.fabmax.webidl.generator.jni.JniNativeGenerator
+import de.fabmax.webidl.generator.jni.nat.JniNativeGenerator
 import de.fabmax.webidl.generator.js.JsInterfaceGenerator
 import de.fabmax.webidl.parser.WebIdlParser
 import org.junit.Assert
@@ -15,7 +15,7 @@ class ParserTest {
         parser.explodeOptionalFunctionParams = false
         val model = parser.parse(inStream)
 
-        Assert.assertTrue(model.interfaces.size == 2)
+        Assert.assertTrue(model.interfaces.size == 4)
 
         Assert.assertEquals(model.interfaces[0].name, "AnInterface")
         Assert.assertTrue(model.interfaces[0].functions.size == 1)
@@ -24,6 +24,8 @@ class ParserTest {
         Assert.assertEquals(model.interfaces[0].attributes[0].name, "someAttribute")
         Assert.assertTrue(model.interfaces[0].hasDecorator("NoDelete"))
         Assert.assertEquals(model.interfaces[0].getDecoratorValue("Prefix", ""), "namespace::")
+
+        Assert.assertEquals(model.interfaces[3].getDecoratorValue("JSImplementation", ""), "ErrorCallback")
     }
 
     @Test

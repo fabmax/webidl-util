@@ -1,4 +1,4 @@
-[Prefix="namespace::", NoDelete]
+[Prefix="someNamespace::", NoDelete]
 interface AnInterface {
     void aFunction(long param1, optional VoidPtr param2);
 
@@ -8,6 +8,20 @@ interface AnInterface {
 interface AnotherInterface {
     void AnInterface();
 
-    [Value] AnInterface anotherFunction([Const, Ref] AnInterface param1);
+    [Value] AnInterface overloadedFunction([Const, Ref] AnInterface param1);
+    [Value] AnInterface overloadedFunction([Const, Ref] AnInterface param1, long secondParam);
 };
 AnotherInterface implements AnInterface;
+
+[Prefix="someNamespace::"]
+interface ErrorCallback {
+    boolean reportError(long code, DOMString message);
+    unsigned long someOtherMethod();
+};
+
+[JSImplementation="ErrorCallback"]
+interface JavaErrorCallback {
+    void JavaErrorCallback();
+    boolean reportError(long code, DOMString message);
+    unsigned long someOtherMethod();
+};
