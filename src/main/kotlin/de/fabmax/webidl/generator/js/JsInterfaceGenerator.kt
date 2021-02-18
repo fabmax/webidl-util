@@ -1,6 +1,7 @@
 package de.fabmax.webidl.generator.js
 
 import de.fabmax.webidl.generator.CodeGenerator
+import de.fabmax.webidl.generator.indent
 import de.fabmax.webidl.model.*
 import java.io.File
 import java.io.Writer
@@ -144,8 +145,10 @@ class JsInterfaceGenerator : CodeGenerator() {
                         }
                     }
                     
-                    fun destroy(nativeObject: Any) {
-                        $moduleMemberName.destroy(nativeObject)
+                    fun destroy(vararg nativeObjects: Any) {
+                        for (obj in nativeObjects) {
+                            physXJs.destroy(obj)
+                        }
                     }
                 }
             """.trimIndent())
@@ -170,13 +173,42 @@ class JsInterfaceGenerator : CodeGenerator() {
                     package $ktPkg
                 """.trimIndent()).append("\n\n")
                 getInterfacesByPackage(pkg).forEach {
-                    it.generate(this, w)
+                    if (it.hasDecorator("JSImplementation")) {
+                        it.generateCallback(this, w)
+                    } else {
+                        it.generate(this, w)
+                    }
                 }
                 getEnumsByPackage(pkg).forEach {
                     it.generate(w)
                 }
             }
         }
+    }
+
+    private fun IdlInterface.generateCallback(model: IdlModel, w: Writer) {
+        val superIf = getDecoratorValue("JSImplementation", "")
+        w.write("external interface $name : $superIf {\n")
+
+        // functions of callback interfaces are members, which have to be set
+        functions.filter { it.name != name }.forEach { func ->
+            val paramDocs = mutableMapOf<String, String>()
+            func.parameters.forEach { param -> paramDocs[param.name] = makeTypeDoc(param.type, param.decorators) }
+            val returnDoc = if (func.returnType.isVoid) "" else makeTypeDoc(func.returnType, func.decorators)
+            generateJavadoc(paramDocs, returnDoc, w, withAnnotations = false)
+
+            val funcName = "$name.${func.name}"
+            val argsStr = func.parameters.joinToString(", ") { "${it.name}: ${model.ktType(it.type, it.isNullable(this, funcName))}" }
+            val retType = if (func.returnType.typeName != "void") {
+                model.ktType(func.returnType, nullableReturnValues.contains(funcName))
+            } else {
+                "Unit"
+            }
+            w.write("    var ${func.name}: ($argsStr) -> $retType\n\n")
+        }
+
+        w.write("}\n\n")
+        generateFakeConstructor(w)
     }
 
     private fun IdlInterface.generate(model: IdlModel, w: Writer) {
@@ -209,19 +241,23 @@ class JsInterfaceGenerator : CodeGenerator() {
 
                 // function declaration
                 val funcName = "$name.${func.name}"
-                val argsStr = func.parameters.joinToString(", ", transform = { "${it.name}: ${model.ktType(it.type, it.isNullable(this, funcName))}" })
+                val isOverride = if (func.isOverride(this, model)) "override " else ""
+                val argsStr = func.parameters.joinToString(", ") { "${it.name}: ${model.ktType(it.type, it.isNullable(this, funcName))}" }
                 val retType = if (func.returnType.typeName != "void") {
                     ": ${model.ktType(func.returnType, nullableReturnValues.contains(funcName))}"
                 } else {
                     ""
                 }
-                w.write("    fun ${func.name}($argsStr)$retType\n\n")
+                w.write("    ${isOverride}fun ${func.name}($argsStr)$retType\n\n")
             }
 
             w.write("}")
         }
         w.write("\n\n")
+        generateFakeConstructor(w)
+    }
 
+    private fun IdlInterface.generateFakeConstructor(w: Writer) {
         functions.filter { it.name == name }.forEach { ctor ->
             // basic javadoc with some extended type info
             val paramDocs = mutableMapOf<String, String>()
@@ -239,6 +275,29 @@ class JsInterfaceGenerator : CodeGenerator() {
                 }
             """.trimIndent()).append("\n\n")
         }
+    }
+
+    private fun IdlFunction.isOverride(parentIf: IdlInterface, model: IdlModel): Boolean {
+        for (superIf in parentIf.superInterfaces) {
+            val sif = model.interfaces.find { it.name == superIf }
+            if (sif != null && sif.hasFunction(name, model)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun IdlInterface.hasFunction(funName: String, model: IdlModel): Boolean {
+        if (functions.any { it.name == funName }) {
+            return true
+        }
+        for (superIf in superInterfaces) {
+            val sif = model.interfaces.find { it.name == superIf }
+            if (sif != null && sif.hasFunction(funName, model)) {
+                return true
+            }
+        }
+        return false
     }
 
     private fun IdlAttribute.isNullable(parentIf: IdlInterface): Boolean {
@@ -277,17 +336,18 @@ class JsInterfaceGenerator : CodeGenerator() {
         return "$typeString$decoString"
     }
 
-    private fun generateJavadoc(paramDocs: Map<String, String>, returnDoc: String, w: Writer, indent: String = "    ") {
+    private fun generateJavadoc(paramDocs: Map<String, String>, returnDoc: String, w: Writer, indent: String = indent(4), withAnnotations: Boolean = true) {
         if (paramDocs.isNotEmpty() || returnDoc.isNotEmpty()) {
+            val anno = if (withAnnotations) "@" else ""
             w.append("$indent/**\n")
             if (paramDocs.isNotEmpty()) {
                 val maxNameLen = paramDocs.keys.map { it.length }.maxOf { it }
                 paramDocs.forEach { (name, doc) ->
-                    w.append(String.format(Locale.ENGLISH, "$indent * @param %-${maxNameLen}s %s\n", name, doc))
+                    w.append(String.format(Locale.ENGLISH, "$indent * ${anno}param %-${maxNameLen}s %s\n", name, doc))
                 }
             }
             if (returnDoc.isNotEmpty()) {
-                w.append("$indent * @return $returnDoc\n")
+                w.append("$indent * ${anno}return $returnDoc\n")
             }
             w.append("$indent */\n")
         }
