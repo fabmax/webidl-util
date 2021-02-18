@@ -30,10 +30,9 @@ internal class JavaType(val idlType: IdlType, val isIdlEnum: Boolean) {
         }
     }
 
-    fun boxedReturn(value: String, isNullable: Boolean = false): String {
+    fun boxedReturn(value: String): String {
         return when {
             idlType.isVoid -> value
-            isNullable && requiresMarshalling -> "long tmp = $value;\n                return (tmp != 0L ? $javaType.wrapPointer(tmp) : null)"
             requiresMarshalling -> "return $javaType.wrapPointer($value)"
             else -> "return $value"
         }

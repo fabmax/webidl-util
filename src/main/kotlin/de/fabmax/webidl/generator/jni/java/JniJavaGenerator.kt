@@ -35,12 +35,6 @@ class JniJavaGenerator : CodeGenerator() {
     val nullableAttributes = mutableSetOf<String>()
 
     /**
-     * List of functions, which will be generated with nullable return types. Expected format:
-     * "InterfaceName.functionName"
-     */
-    val nullableReturnValues = mutableSetOf<String>()
-
-    /**
      * List of function parameters, which will be generated with nullable types. Expected format:
      * "InterfaceName.functionName" to "parameterName"
      */
@@ -459,6 +453,13 @@ class JniJavaGenerator : CodeGenerator() {
             nativeArgs += nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
             callArgs += nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable(this, func)) }
         }
+        val nullCheck = if (func.isStatic) { "" } else {
+            "\n" + """
+                if (address == 0L) {
+                    throw new NullPointerException("Native address of " + this + " is 0");
+                }
+            """.trimIndent().prependIndent(16)
+        }
 
         val paramDocs = mutableMapOf<String, String>()
         nativeToJavaParams.forEach { (nat, java) ->
@@ -468,14 +469,14 @@ class JniJavaGenerator : CodeGenerator() {
         generateJavadoc(paramDocs, returnDoc, w)
 
         w.append("""
-            public$staticMod ${returnType.javaType} ${func.name}($javaArgs) {
-                ${returnType.boxedReturn("_${func.name}($callArgs)", "$name.${func.name}" in nullableReturnValues)};
+            public$staticMod ${returnType.javaType} ${func.name}($javaArgs) {$nullCheck
+                ${returnType.boxedReturn("_${func.name}($callArgs)")};
             }
             private static native ${returnType.internalType} _${func.name}($nativeArgs);
         """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
-    private fun IdlInterface.generateGet(attrib: IdlAttribute, w: Writer) {
+    private fun generateGet(attrib: IdlAttribute, w: Writer) {
         val javaType = JavaType(attrib.type)
         val methodName = "get${firstCharToUpper(attrib.name)}"
 
@@ -486,14 +487,22 @@ class JniJavaGenerator : CodeGenerator() {
         val addressSig = if (attrib.isStatic) "" else "long address"
         val addressCall = if (attrib.isStatic) "" else "address"
 
+        val nullCheck = if (attrib.isStatic) { "" } else {
+            "\n" + """
+                if (address == 0L) {
+                    throw new NullPointerException("Native address of " + this + " is 0");
+                }
+            """.trimIndent().prependIndent(16)
+        }
+
         val paramDocs = mutableMapOf<String, String>()
         if (attrib.type.isArray) {
             paramDocs["index"] = "Array index"
         }
         generateJavadoc(paramDocs, makeTypeDoc(javaType, attrib.decorators), w)
         w.append("""
-            public$staticMod ${javaType.javaType} $methodName($arrayModPub) {
-                ${javaType.boxedReturn("_$methodName($addressCall$arrayCallMod)", attrib.isNullable(this))};
+            public$staticMod ${javaType.javaType} $methodName($arrayModPub) {$nullCheck
+                ${javaType.boxedReturn("_$methodName($addressCall$arrayCallMod)")};
             }
             private static native ${javaType.internalType} _$methodName($addressSig$arrayModPriv);
         """.trimIndent().prependIndent(4)).append("\n\n")
@@ -507,6 +516,14 @@ class JniJavaGenerator : CodeGenerator() {
         val arrayModPub = if (attrib.type.isArray) "int index, " else ""
         val arrayCallMod = if (attrib.type.isArray) ", index" else ""
         val addressCall = if (attrib.isStatic) "" else "address"
+
+        val nullCheck = if (attrib.isStatic) { "" } else {
+            "\n" + """
+                if (address == 0L) {
+                    throw new NullPointerException("Native address of " + this + " is 0");
+                }
+            """.trimIndent().prependIndent(16)
+        }
 
         var nativeSig = if (attrib.isStatic) "" else "long address"
         if (attrib.type.isArray) {
@@ -523,7 +540,7 @@ class JniJavaGenerator : CodeGenerator() {
         paramDocs["value"] = makeTypeDoc(javaType, attrib.decorators)
         generateJavadoc(paramDocs, "", w)
         w.append("""
-            public$staticMod void $methodName($arrayModPub${javaType.javaType} value) {
+            public$staticMod void $methodName($arrayModPub${javaType.javaType} value) {$nullCheck
                 _$methodName($addressCall$arrayCallMod, ${javaType.unbox("value", attrib.isNullable(this))});
             }
             private static native void _$methodName($nativeSig);

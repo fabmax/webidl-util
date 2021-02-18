@@ -76,7 +76,7 @@ internal class JavaClass(val name: String, val isEnum: Boolean, idlPkg: String, 
         if (generatePointerWrapMethods) {
             w.append("""
                 public static $name wrapPointer(long address) {
-                    return new $name(address);
+                    return address != 0L ? new $name(address) : null;
                 }
                 
                 protected $name(long address) {
