@@ -145,10 +145,8 @@ class JsInterfaceGenerator : CodeGenerator() {
                         }
                     }
                     
-                    fun destroy(vararg nativeObjects: Any) {
-                        for (obj in nativeObjects) {
-                            physXJs.destroy(obj)
-                        }
+                    fun destroy(nativeObject: Any) {
+                        physXJs.destroy(nativeObject)
                     }
                 }
             """.trimIndent())
@@ -208,7 +206,7 @@ class JsInterfaceGenerator : CodeGenerator() {
         }
 
         w.write("}\n\n")
-        generateFakeConstructor(w)
+        generateExtensionConstructor(w)
     }
 
     private fun IdlInterface.generate(model: IdlModel, w: Writer) {
@@ -254,17 +252,21 @@ class JsInterfaceGenerator : CodeGenerator() {
             w.write("}")
         }
         w.write("\n\n")
-        generateFakeConstructor(w)
+        generateExtensionConstructor(w)
+        if (!hasDecorator("NoDelete")) {
+            generateExtensionDestructor(w)
+        }
+        generateExtensionAttributes(w)
     }
 
-    private fun IdlInterface.generateFakeConstructor(w: Writer) {
+    private fun IdlInterface.generateExtensionConstructor(w: Writer) {
         functions.filter { it.name == name }.forEach { ctor ->
             // basic javadoc with some extended type info
             val paramDocs = mutableMapOf<String, String>()
             ctor.parameters.forEach { param -> paramDocs[param.name] = makeTypeDoc(param.type, param.decorators) }
             generateJavadoc(paramDocs, "", w, "")
 
-            // fake constructor function
+            // extension constructor function
             val funcName = "$name.${ctor.name}"
             val argsStr = ctor.parameters.joinToString(", ", transform = { "${it.name}: ${model.ktType(it.type, it.isNullable(this, funcName))}" })
             val argNames = ctor.parameters.joinToString(", ", transform = { it.name })
@@ -274,6 +276,52 @@ class JsInterfaceGenerator : CodeGenerator() {
                     return js("new module.$name($argNames)")
                 }
             """.trimIndent()).append("\n\n")
+        }
+    }
+
+    private fun IdlInterface.generateExtensionDestructor(w: Writer) {
+        w.append("""
+            fun $name.destroy() {
+                $loaderClassName.destroy(this)
+            }
+        """.trimIndent()).append("\n\n")
+    }
+
+    private fun IdlInterface.generateExtensionAttributes(w: Writer) {
+        val gets = functions.filter { get ->
+            get.name.startsWith("get") && get.parameters.isEmpty() && functions.none {
+                it.name == get.name.replace("get", "set")
+            }
+        }
+        gets.forEach { get ->
+            val attribName = firstCharToLower(get.name.substring(3))
+            w.append("""
+                val $name.$attribName
+                    get() = ${get.name}()
+            """.trimIndent()).append("\n")
+        }
+        if (gets.isNotEmpty()) {
+            w.append('\n')
+        }
+
+        val getSets = functions.filter { get ->
+            get.name.startsWith("get") && get.parameters.isEmpty() && functions.any {
+                it.name == get.name.replace("get", "set")
+                        && it.parameters.size == 1
+                        && it.parameters[0].type.typeName == get.returnType.typeName
+            }
+        }
+        getSets.forEach { get ->
+            val attribName = firstCharToLower(get.name.substring(3))
+            val setName = "s${get.name.substring(1)}"
+            w.append("""
+                var $name.$attribName
+                    get() = ${get.name}()
+                    set(value) { $setName(value) }
+            """.trimIndent()).append("\n")
+        }
+        if (getSets.isNotEmpty()) {
+            w.append('\n')
         }
     }
 
