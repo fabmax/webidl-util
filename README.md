@@ -1,5 +1,8 @@
 # webidl-util
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/de.fabmax/webidl-util/badge.svg)](https://maven-badges.herokuapp.com/maven-central/de.fabmax/webidl-util)
+
 A parser and code-generator for WebIDL files.
 
 The goals of this project are:
@@ -21,7 +24,7 @@ So it's arguably in a state where you could actually use it.
 This library is published to maven central, so you can easily add ít to your (gradle-)dependencies:
 ```
 dependencies {
-    implementation("de.fabmax:webidl-util:0.7.0")
+    implementation("de.fabmax:webidl-util:0.7.1")
 }
 ```
 
