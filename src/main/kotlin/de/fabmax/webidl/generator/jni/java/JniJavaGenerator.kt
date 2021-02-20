@@ -87,6 +87,19 @@ class JniJavaGenerator : CodeGenerator() {
                     return address;
                 }
                 
+                @Override
+                public boolean equals(Object o) {
+                    if (this == o) return true;
+                    if (!(o instanceof NativeObject)) return false;
+                    NativeObject that = (NativeObject) o;
+                    return address == that.address;
+                }
+            
+                @Override
+                public int hashCode() {
+                    return (int) (address ^ (address >>> 32));
+                }
+                
                 @FunctionalInterface
                 public interface Allocator<T> {
                     long on(T allocator, int alignment, int size);
