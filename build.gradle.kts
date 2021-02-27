@@ -3,14 +3,14 @@ import java.io.FileInputStream
 import java.util.*
 
 plugins {
-    kotlin("jvm") version "1.4.30"
+    kotlin("jvm") version "1.4.31"
     id("org.jetbrains.dokka") version "1.4.20"
     `maven-publish`
     signing
 }
 
 group = "de.fabmax"
-version = "0.7.1"
+version = "0.7.2"
 
 repositories {
     mavenCentral()

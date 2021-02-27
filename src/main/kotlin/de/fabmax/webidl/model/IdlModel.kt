@@ -27,6 +27,16 @@ class IdlModel private constructor(builder: Builder) : IdlElement(builder) {
         return enums.filter { it.sourcePackage == sourcePackage }
     }
 
+    fun validate() {
+        interfaces.forEach { intrf ->
+            intrf.functions.forEach { func ->
+                if (intrf.functions.any { f2 -> f2 !== func && f2.name == func.name && f2.parameters.size == func.parameters.size }) {
+                    println("WARN: overloaded function with same parameter count: ${intrf.name}.${func.name} (works for JNI bindings but bot for javascript)")
+                }
+            }
+        }
+    }
+
     override fun toString(indent: String): String {
         val str = StringBuilder()
 

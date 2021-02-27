@@ -83,6 +83,12 @@ class JniJavaGenerator : CodeGenerator() {
                     return new NativeObject(address);
                 }
                 
+                protected void checkNotNull() {
+                    if (address == 0L) {
+                        throw new NullPointerException("Native address of " + this + " is 0");
+                    }
+                }
+                
                 public long getAddress() {
                     return address;
                 }
@@ -466,13 +472,7 @@ class JniJavaGenerator : CodeGenerator() {
             nativeArgs += nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
             callArgs += nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable(this, func)) }
         }
-        val nullCheck = if (func.isStatic) { "" } else {
-            "\n" + """
-                if (address == 0L) {
-                    throw new NullPointerException("Native address of " + this + " is 0");
-                }
-            """.trimIndent().prependIndent(16)
-        }
+        val nullCheck = if (func.isStatic) "" else  "\n${indent(16)}checkNotNull();"
 
         val paramDocs = mutableMapOf<String, String>()
         nativeToJavaParams.forEach { (nat, java) ->
@@ -499,14 +499,7 @@ class JniJavaGenerator : CodeGenerator() {
         val arrayCallMod = if (attrib.type.isArray) ", index" else ""
         val addressSig = if (attrib.isStatic) "" else "long address"
         val addressCall = if (attrib.isStatic) "" else "address"
-
-        val nullCheck = if (attrib.isStatic) { "" } else {
-            "\n" + """
-                if (address == 0L) {
-                    throw new NullPointerException("Native address of " + this + " is 0");
-                }
-            """.trimIndent().prependIndent(16)
-        }
+        val nullCheck = if (attrib.isStatic) "" else  "\n${indent(16)}checkNotNull();"
 
         val paramDocs = mutableMapOf<String, String>()
         if (attrib.type.isArray) {
@@ -529,14 +522,7 @@ class JniJavaGenerator : CodeGenerator() {
         val arrayModPub = if (attrib.type.isArray) "int index, " else ""
         val arrayCallMod = if (attrib.type.isArray) ", index" else ""
         val addressCall = if (attrib.isStatic) "" else "address"
-
-        val nullCheck = if (attrib.isStatic) { "" } else {
-            "\n" + """
-                if (address == 0L) {
-                    throw new NullPointerException("Native address of " + this + " is 0");
-                }
-            """.trimIndent().prependIndent(16)
-        }
+        val nullCheck = if (attrib.isStatic) "" else  "\n${indent(16)}checkNotNull();"
 
         var nativeSig = if (attrib.isStatic) "" else "long address"
         if (attrib.type.isArray) {
