@@ -270,10 +270,12 @@ class JsInterfaceGenerator : CodeGenerator() {
             val funcName = "$name.${ctor.name}"
             val argsStr = ctor.parameters.joinToString(", ", transform = { "${it.name}: ${model.ktType(it.type, it.isNullable(this, funcName))}" })
             val argNames = ctor.parameters.joinToString(", ", transform = { it.name })
+            val argsStrInternal = "_module: dynamic" + if (argsStr.isEmpty()) "" else ", $argsStr"
+            val argNamesInternal = moduleLocation + if (argNames.isEmpty()) "" else ", $argNames"
             w.append("""
                 fun $name($argsStr): $name {
-                    val module = $moduleLocation
-                    return js("new module.$name($argNames)")
+                    fun _$name($argsStrInternal) = js("new _module.$name($argNames)")
+                    return _$name($argNamesInternal)
                 }
             """.trimIndent()).append("\n\n")
         }
