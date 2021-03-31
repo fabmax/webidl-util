@@ -196,7 +196,7 @@ class JsInterfaceGenerator : CodeGenerator() {
             generateJavadoc(paramDocs, returnDoc, w, withAnnotations = false)
 
             val funcName = "$name.${func.name}"
-            val argsStr = func.parameters.joinToString(", ") { "${it.name}: ${model.ktType(it.type, it.isNullable(this, funcName))}" }
+            val argsStr = func.parameters.joinToString(", ") { "${it.name}: ${model.ktType(it.type, it.isNullable(funcName))}" }
             val retType = if (func.returnType.typeName != "void") {
                 model.ktType(func.returnType, nullableReturnValues.contains(funcName))
             } else {
@@ -240,7 +240,7 @@ class JsInterfaceGenerator : CodeGenerator() {
                 // function declaration
                 val funcName = "$name.${func.name}"
                 val isOverride = if (func.isOverride(this, model)) "override " else ""
-                val argsStr = func.parameters.joinToString(", ") { "${it.name}: ${model.ktType(it.type, it.isNullable(this, funcName))}" }
+                val argsStr = func.parameters.joinToString(", ") { "${it.name}: ${model.ktType(it.type, it.isNullable(funcName))}" }
                 val retType = if (func.returnType.typeName != "void") {
                     ": ${model.ktType(func.returnType, nullableReturnValues.contains(funcName))}"
                 } else {
@@ -268,7 +268,7 @@ class JsInterfaceGenerator : CodeGenerator() {
 
             // extension constructor function
             val funcName = "$name.${ctor.name}"
-            val argsStr = ctor.parameters.joinToString(", ", transform = { "${it.name}: ${model.ktType(it.type, it.isNullable(this, funcName))}" })
+            val argsStr = ctor.parameters.joinToString(", ", transform = { "${it.name}: ${model.ktType(it.type, it.isNullable(funcName))}" })
             val argNames = ctor.parameters.joinToString(", ", transform = { it.name })
             val argsStrInternal = "_module: dynamic" + if (argsStr.isEmpty()) "" else ", $argsStr"
             val argNamesInternal = moduleLocation + if (argNames.isEmpty()) "" else ", $argNames"
@@ -354,9 +354,8 @@ class JsInterfaceGenerator : CodeGenerator() {
         return nullableAttributes.contains("${parentIf.name}.$name")
     }
 
-    private fun IdlFunctionParameter.isNullable(parentIf: IdlInterface, funcName: String): Boolean {
-        val paramName = "$parentIf.$funcName" to name
-        return nullableParameters.contains(paramName)
+    private fun IdlFunctionParameter.isNullable(funcName: String): Boolean {
+        return nullableParameters.contains(funcName to name)
     }
 
     private fun IdlEnum.generate(w: Writer) {
