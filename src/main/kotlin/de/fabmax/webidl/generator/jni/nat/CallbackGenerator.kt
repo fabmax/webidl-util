@@ -114,7 +114,7 @@ internal class CallbackGenerator(val model: IdlModel) {
 
             var call = "$env->$callTypedMethod(javaGlobalRef, ${cbFunc.name}MethodId$callParams)"
             if (!cbFunc.returnType.isVoid) {
-                call = returnType.castJniToNative(call)
+                call = "return ${returnType.castJniToNative(call)}"
             }
 
             out.append('\n').append("""

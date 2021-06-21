@@ -4,18 +4,16 @@ import java.util.*
 
 plugins {
     kotlin("jvm") version "1.4.32"
-    id("org.jetbrains.dokka") version "1.4.30"
+    id("org.jetbrains.dokka") version "1.4.32"
     `maven-publish`
     signing
 }
 
 group = "de.fabmax"
-version = "0.7.3"
+version = "0.7.4"
 
 repositories {
     mavenCentral()
-    // dokkaJavadoc plugin is published on jcenter
-    jcenter()
 }
 
 dependencies {

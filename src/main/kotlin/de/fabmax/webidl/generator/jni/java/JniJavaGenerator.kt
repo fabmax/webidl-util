@@ -276,11 +276,11 @@ class JniJavaGenerator : CodeGenerator() {
                     " "
                 } else if (func.returnType.isPrimitive) {
                     val returnVal = when (func.returnType.typeName) {
-                        "boolean" -> "false;"
-                        "float" -> "0.0f;"
-                        "double" -> "0.0;"
-                        "DOMString" -> "\"\";"
-                        else -> "0;"
+                        "boolean" -> "false"
+                        "float" -> "0.0f"
+                        "double" -> "0.0"
+                        "DOMString" -> "\"\""
+                        else -> "0"
                     }
                     "\n${indent(24)}return $returnVal;\n${indent(20)}"
                 } else {
