@@ -5,6 +5,7 @@ interface AnInterface {
     attribute unsigned long long someAttribute;
 };
 
+[Prefix = "someNamespaceWithSpace::"]
 interface AnotherInterface {
     void AnInterface();
 

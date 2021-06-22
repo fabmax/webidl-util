@@ -17,16 +17,18 @@ class ParserTest {
 
         Assert.assertTrue(model.interfaces.size == 4)
 
-        Assert.assertEquals(model.interfaces[0].name, "AnInterface")
+        Assert.assertEquals("AnInterface", model.interfaces[0].name)
         Assert.assertTrue(model.interfaces[0].functions.size == 1)
-        Assert.assertEquals(model.interfaces[0].functions[0].name, "aFunction")
+        Assert.assertEquals("aFunction", model.interfaces[0].functions[0].name)
         Assert.assertTrue(model.interfaces[0].attributes.size == 1)
-        Assert.assertEquals(model.interfaces[0].attributes[0].name, "someAttribute")
+        Assert.assertEquals("someAttribute", model.interfaces[0].attributes[0].name)
         Assert.assertTrue(model.interfaces[0].hasDecorator("NoDelete"))
-        Assert.assertEquals(model.interfaces[0].getDecoratorValue("Prefix", ""), "someNamespace::")
+        Assert.assertEquals("someNamespace::", model.interfaces[0].getDecoratorValue("Prefix", ""))
 
-        Assert.assertEquals(model.interfaces[3].name, "JavaErrorCallback")
-        Assert.assertEquals(model.interfaces[3].getDecoratorValue("JSImplementation", ""), "ErrorCallback")
+        Assert.assertEquals("someNamespaceWithSpace::", model.interfaces[1].getDecoratorValue("Prefix", ""))
+
+        Assert.assertEquals("JavaErrorCallback", model.interfaces[3].name)
+        Assert.assertEquals("ErrorCallback", model.interfaces[3].getDecoratorValue("JSImplementation", ""))
     }
 
     @Test

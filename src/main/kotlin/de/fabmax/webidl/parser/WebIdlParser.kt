@@ -3,7 +3,6 @@ package de.fabmax.webidl.parser
 import de.fabmax.webidl.model.*
 import kotlinx.coroutines.*
 import java.io.*
-import kotlin.IllegalStateException
 
 class WebIdlParser {
 
@@ -199,11 +198,11 @@ class WebIdlParser {
                 val tok = stream.popUntilPattern("[,\\]]") ?: throw ParserException("Failed parsing decorator list")
                 val splitIdx = tok.first.indexOf('=')
                 val decorator = if (splitIdx > 0) {
-                    var value = tok.first.substring(splitIdx+1)
+                    var value = tok.first.substring(splitIdx+1).trim()
                     if (value.startsWith("\"") && value.endsWith("\"")) {
                         value = value.substring(1, value.length - 1)
                     }
-                    IdlDecorator(tok.first.substring(0 until splitIdx), value)
+                    IdlDecorator(tok.first.substring(0 until splitIdx).trim(), value)
                 } else {
                     IdlDecorator(tok.first, null)
                 }
