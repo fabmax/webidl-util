@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "de.fabmax"
-version = "0.7.5"
+version = "0.7.6"
 
 repositories {
     mavenCentral()
@@ -21,6 +21,12 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.2")
 
     testImplementation("junit:junit:4.13")
+}
+
+tasks.withType<KotlinCompile>().all {
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
 }
 
 tasks.register<Jar>("javadocJar") {

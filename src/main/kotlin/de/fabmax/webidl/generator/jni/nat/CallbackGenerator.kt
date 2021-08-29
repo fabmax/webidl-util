@@ -9,7 +9,7 @@ import java.io.Writer
 internal class CallbackGenerator(val model: IdlModel) {
 
     fun generateJniThreadManager(w: Writer) {
-        // generate support code, which auto  attaches and detaches native threads to the Java VM
+        // generate support code, which auto attaches and detaches native threads to the Java VM
         // this ie needed for callbacks from the native side to Java from other threads than the main thread
         // Java code must call JniThreadManager.init() after native lib is loaded for this to work.
         w.append("""
@@ -48,6 +48,19 @@ internal class CallbackGenerator(val model: IdlModel) {
                         jniThreadEnv = JniThreadEnv(env);
                         return true;
                     }
+            };
+            
+            class JavaNativeRef {
+                public:
+                    JavaNativeRef(JNIEnv *env, jobject javaRef) {
+                        javaGlobalRef = env->NewGlobalRef(javaRef);
+                    }
+                    
+                    ~JavaNativeRef() {
+                        jniThreadEnv.getEnv()->DeleteGlobalRef(javaGlobalRef);
+                    }
+                    
+                    jobject javaGlobalRef;
             };
         """.trimIndent()).append("\n\n")
     }

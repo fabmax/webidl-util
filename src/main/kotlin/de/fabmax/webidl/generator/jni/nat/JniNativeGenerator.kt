@@ -39,8 +39,8 @@ class JniNativeGenerator : CodeGenerator() {
 
         w.append("extern \"C\" {\n")
 
-        // generate bindings for JniThreadManager (is always included and not part of the IDL file)
-        generateJniThreadManagerBindings(w)
+        // generate bindings for JniThreadManager and JavaNativeRef (is always included and not part of the IDL file)
+        generateJniSupportBindings(w)
 
         collectPackages().forEach { pkg ->
             getInterfacesByPackage(pkg).forEach {
@@ -55,7 +55,7 @@ class JniNativeGenerator : CodeGenerator() {
         w.write("\n} // /extern \"C\"\n")
     }
 
-    private fun generateJniThreadManagerBindings(w: Writer) {
+    private fun generateJniSupportBindings(w: Writer) {
         w.append('\n').append("""
             // JniThreadManager
             JNIEXPORT jboolean JNICALL ${nativeFunName("", "JniThreadManager", "init")}(JNIEnv* env, jclass) {
@@ -63,6 +63,16 @@ class JniNativeGenerator : CodeGenerator() {
             }
             JNIEXPORT void JNICALL ${nativeFunName("", "JniThreadManager", "delete_native_instance")}(JNIEnv*, jclass, jlong address) {
                 delete (JniThreadManager*) address;
+            }
+            // JavaNativeRef
+            JNIEXPORT jlong JNICALL ${nativeFunName("", "JavaNativeRef", "new_instance")}(JNIEnv* env, jclass, jobject javaRef) {
+                return (jlong) new JavaNativeRef(env, javaRef);
+            }
+            JNIEXPORT void JNICALL ${nativeFunName("", "JavaNativeRef", "delete_instance")}(JNIEnv*, jclass, jlong address) {
+                delete (JavaNativeRef*) address;
+            }
+            JNIEXPORT jobject JNICALL ${nativeFunName("", "JavaNativeRef", "get_java_ref")}(JNIEnv*, jclass, jlong address) {
+                return ((JavaNativeRef*) address)->javaGlobalRef;
             }
         """.trimIndent()).append('\n')
     }

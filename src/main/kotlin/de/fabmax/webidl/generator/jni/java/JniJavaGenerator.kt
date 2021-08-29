@@ -133,6 +133,53 @@ class JniJavaGenerator : CodeGenerator() {
                 private static native boolean _init();
             """.trimIndent().prependIndent(4))
         }
+
+        val javaNativeRef = JavaClass("JavaNativeRef", false, "", packagePrefix).apply {
+            protectedDefaultContructor = false
+            generatePointerWrapMethods = false
+            staticCode = onClassLoad
+            superClass = nativeObject
+        }
+
+        createOutFileWriter(javaNativeRef.fileName).use { w ->
+            javaNativeRef.generatePackage(w)
+            javaNativeRef.generateImports(w)
+
+            w.append("""
+            public class JavaNativeRef<T> extends NativeObject {
+                
+                static {
+                    ${javaNativeRef.staticCode}
+                }
+                
+                private static native long _new_instance(Object javaRef);
+                private static native void _delete_instance(long address);
+                private static native Object _get_java_ref(long address);
+
+                public static <T> JavaNativeRef<T> fromNativeObject(NativeObject nativeObj) {
+                    return new JavaNativeRef<T>(nativeObj != null ? nativeObj.address : 0L);
+                }
+
+                protected JavaNativeRef(long address) {
+                    super(address);
+                }
+
+                public JavaNativeRef(Object javaRef) {
+                    address = _new_instance(javaRef);
+                }
+                
+                public T get() {
+                    checkNotNull();
+                    return (T) _get_java_ref(address);
+                }
+                
+                public void destroy() {
+                    checkNotNull();
+                    _delete_instance(address);
+                }
+            }
+            """.trimIndent())
+        }
     }
 
     private fun makeClassMappings(model: IdlModel) {

@@ -219,6 +219,16 @@ class JsInterfaceGenerator : CodeGenerator() {
         if (nonCtorFuns.isNotEmpty() || attributes.isNotEmpty()) {
             w.write(" {\n")
 
+            // pointer / object address
+            if (superInterfaces.isEmpty()) {
+                w.append("""
+                    /**
+                     * Native object address.
+                     */
+                    val ptr: Int
+                """.trimIndent().prependIndent("    ")).append("\n\n")
+            }
+
             attributes.forEach { attr ->
                 w.append("""
                     /**

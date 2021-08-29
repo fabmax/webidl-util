@@ -34,13 +34,13 @@ internal class JavaClass(val name: String, val isEnum: Boolean, idlPkg: String, 
         fqn = if (javaPkg.isEmpty()) name else "$javaPkg.$name"
     }
 
-    private fun generatePackage(w: Writer) {
+    fun generatePackage(w: Writer) {
         if (javaPkg.isNotEmpty()) {
             w.write("package $javaPkg;\n\n")
         }
     }
 
-    private fun generateImports(w: Writer) {
+    fun generateImports(w: Writer) {
         imports.filter { javaPkg != it.javaPkg }.forEach { import ->
             importFqns += import.fqn
         }
@@ -50,7 +50,7 @@ internal class JavaClass(val name: String, val isEnum: Boolean, idlPkg: String, 
         w.write("\n")
     }
 
-    private fun generateClassStart(w: Writer) {
+    fun generateClassStart(w: Writer) {
         w.write("$visibility ")
         if (modifier.isNotEmpty()) {
             w.write("$modifier ")
