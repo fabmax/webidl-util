@@ -24,7 +24,7 @@ So it's arguably in a state where you could actually use it.
 This library is published to maven central, so you can easily add ít to your (gradle-)dependencies:
 ```
 dependencies {
-    implementation("de.fabmax:webidl-util:0.7.1")
+    implementation("de.fabmax:webidl-util:0.7.7")
 }
 ```
 
