@@ -26,7 +26,7 @@ internal class CallbackGenerator(val model: IdlModel) {
                     }
                     JNIEnv* getEnv() {
                         if (env == NULL && javaVm != NULL) {
-                            javaVm->AttachCurrentThread((void**) &env, NULL);
+                            javaVm->AttachCurrentThreadAsDaemon((void**) &env, NULL);
                             shouldDetach = true;
                         }
                         return env;
