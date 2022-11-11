@@ -145,11 +145,6 @@ class JniNativeGenerator : CodeGenerator() {
             isUsingEnv = func.parameters.any { it.type.isString } || func.returnType.isString
             extraArgs = generateFuncArgs(func)
 
-            if (natReturnType.isValue) {
-                // we can't pass value objects via JNI, use a static variable to cache the value and return a pointer to that one
-                body += "static thread_local ${natReturnType.jniTypeName} _cache;\n"
-            }
-
             val callTarget = if (!func.isStatic) {
                 body += "$ifPrefix$name* self = ($ifPrefix$name*) ${NativeFuncRenderer.ADDRESS};\n"
                 "self->"
@@ -162,6 +157,10 @@ class JniNativeGenerator : CodeGenerator() {
             } else {
                 var returnVal = "$callTarget${func.name}($funcArgs)"
                 if (natReturnType.isValue) {
+                    // We can't pass value objects via JNI, use a static variable to cache the value and return a
+                    // pointer to that one. Initialize the cache variable with returnVal to avoid errors in case the
+                    // type has no default constructor.
+                    body += "static thread_local ${natReturnType.jniTypeName} _cache = $returnVal;\n"
                     body += "_cache = $returnVal;\n"
                     returnVal = "_cache"
                 }
