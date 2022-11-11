@@ -2,6 +2,7 @@ import de.fabmax.webidl.generator.jni.java.JniJavaGenerator
 import de.fabmax.webidl.generator.jni.nat.JniNativeGenerator
 import de.fabmax.webidl.generator.js.JsInterfaceGenerator
 import de.fabmax.webidl.parser.WebIdlParser
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert
 import org.junit.Test
 
@@ -11,9 +12,11 @@ class ParserTest {
     fun parserTest() {
         val inStream = ParserTest::class.java.classLoader.getResourceAsStream("test.idl")!!
 
-        val parser = WebIdlParser()
-        parser.explodeOptionalFunctionParams = false
-        val model = parser.parse(inStream)
+        val model = runBlocking {
+            val parser = WebIdlParser(explodeOptionalFunctionParams = false)
+            parser.parseStream(inStream)
+            parser.finish()
+        }
 
         Assert.assertTrue(model.interfaces.size == 4)
 
@@ -34,7 +37,7 @@ class ParserTest {
     @Test
     fun generatorJsTest() {
         val inStream = ParserTest::class.java.classLoader.getResourceAsStream("test.idl")!!
-        val model = WebIdlParser().parse(inStream)
+        val model = WebIdlParser.parseFromInputStream(inStream)
 
         JsInterfaceGenerator().apply {
             outputDirectory = "test_output/js"
@@ -44,7 +47,7 @@ class ParserTest {
     @Test
     fun generatorJniNativeTest() {
         val inStream = ParserTest::class.java.classLoader.getResourceAsStream("test.idl")!!
-        val model = WebIdlParser().parse(inStream)
+        val model = WebIdlParser.parseFromInputStream(inStream)
 
         JniNativeGenerator().apply {
             outputDirectory = "test_output/jni_native"
@@ -54,7 +57,7 @@ class ParserTest {
     @Test
     fun generatorJniJavaTest() {
         val inStream = ParserTest::class.java.classLoader.getResourceAsStream("test.idl")!!
-        val model = WebIdlParser().parse(inStream)
+        val model = WebIdlParser.parseFromInputStream(inStream)
 
         JniJavaGenerator().apply {
             outputDirectory = "test_output/jni_java"

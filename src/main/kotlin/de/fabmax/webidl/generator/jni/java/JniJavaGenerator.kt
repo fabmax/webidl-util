@@ -147,7 +147,6 @@ class JniJavaGenerator : CodeGenerator() {
 
             w.append("""
             public class JavaNativeRef<T> extends NativeObject {
-                
                 static {
                     ${javaNativeRef.staticCode}
                 }
@@ -168,6 +167,7 @@ class JniJavaGenerator : CodeGenerator() {
                     address = _new_instance(javaRef);
                 }
                 
+                @SuppressWarnings("unchecked")
                 public T get() {
                     checkNotNull();
                     return (T) _get_java_ref(address);

@@ -7,6 +7,7 @@ import java.io.Writer
 
 class JniNativeGenerator : CodeGenerator() {
 
+    var glueFileName = "glue.h"
     var packagePrefix = ""
 
     val externallyAllocatableClasses = mutableSetOf<String>()
@@ -19,7 +20,7 @@ class JniNativeGenerator : CodeGenerator() {
 
     override fun generate(model: IdlModel) {
         this.model = model
-        createOutFileWriter("glue.h").use {
+        createOutFileWriter(glueFileName).use {
             model.generateGlueCpp(it)
         }
     }

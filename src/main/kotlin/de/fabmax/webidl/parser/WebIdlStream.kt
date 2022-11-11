@@ -1,25 +1,22 @@
 package de.fabmax.webidl.parser
 
 import de.fabmax.webidl.model.IdlType
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.receiveOrNull
 
 class WebIdlStream {
     val channel = Channel<String>()
     var readLines = 0
     var buffer = StringBuilder()
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     private suspend inline fun readUntil(stop: () -> Boolean): Boolean {
         while (!stop()) {
-            val nextLine = channel.receiveOrNull()
-            if (nextLine != null) {
+            val nextLine = channel.receiveCatching()
+            if (nextLine.isSuccess) {
                 readLines++
                 if (buffer.isNotEmpty()) {
                     buffer.append("\n")
                 }
-                buffer.append(nextLine.trim()).replace(whitespaceRegex, " ")
+                buffer.append(nextLine.getOrThrow().trim()).replace(whitespaceRegex, " ")
             } else {
                 // channel was closed
                 return false

@@ -1,57 +1,89 @@
 package de.fabmax.webidl.parser
 
 import de.fabmax.webidl.model.*
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import java.io.*
+import kotlin.coroutines.CoroutineContext
 
-class WebIdlParser {
+class WebIdlParser(
+    val modelName: String = "webidl",
+    val explodeOptionalFunctionParams: Boolean = true
+) : CoroutineScope {
 
-    var explodeOptionalFunctionParams = true
+    private val job = Job()
+    override val coroutineContext: CoroutineContext
+        get() = job
 
-    fun parse(file: String): IdlModel {
-        return FileInputStream(file).use {
-            parse(it, File(file).name)
+    private val parserState = ParserState()
+    private val processorStream = WebIdlStream()
+
+    val parseResult = async {
+        val parser = WebIdlParserType.Root.newParser(parserState) as RootParser
+        parser.builder.name = modelName
+        parser.parse(processorStream)
+        if (parserState.parserStack.isNotEmpty()) {
+            throw IllegalStateException("Unexpected non-empty parser stack")
+        }
+        parser.builder.build()
+    }
+
+    suspend fun parseStream(inStream: InputStream) {
+        parserState.onNewFile()
+        BufferedReader(InputStreamReader(inStream)).use { r ->
+            r.lineSequence().forEach {
+                processorStream.channel.send(it)
+            }
         }
     }
 
-    fun parse(inStream: InputStream, name: String = "webidl"): IdlModel {
-        val stream = WebIdlStream()
-        GlobalScope.launch {
-            @Suppress("BlockingMethodInNonBlockingContext")
-            withContext(Dispatchers.IO) {
-                BufferedReader(InputStreamReader(inStream)).use { r ->
-                    var l = r.readLine()
-                    while (l != null) {
-                        stream.channel.send(l)
-                        l = r.readLine()
+    suspend fun finish(): IdlModel {
+        processorStream.channel.close()
+        return parseResult.await()
+    }
+
+    companion object {
+        fun parseDirectory(path: String, modelName: String? = null): IdlModel {
+            val directory = File(path)
+            if (!directory.exists() || !directory.isDirectory) {
+                throw IOException("Given path is not a directory")
+            }
+            val name = modelName ?: directory.name
+
+            return runBlocking {
+                val parser = WebIdlParser(name)
+                directory.listFiles { _, name -> name.endsWith(".idl", true) }?.forEach { idlFile ->
+                    println("Parsing $idlFile")
+                    FileInputStream(idlFile).use {
+                        parser.parseStream(it)
                     }
-                    stream.channel.close()
                 }
+                parser.finish()
             }
         }
 
-        val parseResult = GlobalScope.async {
-            val parserState = ParserState().apply {
-                explodeOptionalFunctionParams = this@WebIdlParser.explodeOptionalFunctionParams
+        fun parseSingleFile(path: String, modelName: String? = null): IdlModel {
+            return FileInputStream(path).use {
+                val name = modelName ?: File(path).name.replace(".idl", "", true)
+                parseFromInputStream(it, name)
             }
-            val parser = WebIdlParserType.Root.newParser(parserState) as RootParser
-            parser.builder.name = name.replace(".idl", "", true)
-            parser.parse(stream)
-            if (parserState.parserStack.isNotEmpty()) {
-                throw IllegalStateException("Unexpected non-empty parser stack")
-            }
-            parser.builder.build()
         }
 
-        return runBlocking {
-            parseResult.await()
+        fun parseFromInputStream(inStream: InputStream, modelName: String = "webidl"): IdlModel {
+            return runBlocking {
+                val parser = WebIdlParser(modelName)
+                parser.parseStream(inStream)
+                parser.finish()
+            }
         }
     }
 
-    private class ParserState {
+    private inner class ParserState {
         val parserStack = ArrayDeque<Parser>()
 
-        var explodeOptionalFunctionParams = true
+        val explodeOptionalFunctionParams: Boolean get() = this@WebIdlParser.explodeOptionalFunctionParams
 
         var sourcePackage = ""
 
@@ -79,7 +111,7 @@ class WebIdlParser {
         }
 
         fun evaluateMetaTags(comment: String) {
-            val tagPattern = Regex("\\[\\w+=[^]]+]?")
+            val tagPattern = Regex("\\[\\w+=[^]]*]?")
             tagPattern.findAll(comment).forEach {
                 val tag = comment.substring(it.range)
                 val split = tag.indexOf('=')
@@ -90,6 +122,10 @@ class WebIdlParser {
                     "package" -> sourcePackage = value
                 }
             }
+        }
+
+        fun onNewFile() {
+            sourcePackage = ""
         }
     }
 

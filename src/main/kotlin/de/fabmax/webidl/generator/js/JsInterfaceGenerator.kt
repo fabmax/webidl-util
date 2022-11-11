@@ -425,9 +425,10 @@ class JsInterfaceGenerator : CodeGenerator() {
             if (!isPrimitive && (isNullable || allTypesNullable)) {
                 typeStr += "?"
             }
-            if (type.isArray) {
-                typeStr = "Array<$typeStr>"
-            }
+            // array access is not really supported by emscripten/WebIDL
+//            if (type.isArray) {
+//                typeStr = "Array<$typeStr>"
+//            }
             typeStr
         }
     }
