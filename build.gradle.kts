@@ -29,6 +29,12 @@ tasks.withType<KotlinCompile>().all {
     }
 }
 
+tasks.test {
+    testLogging {
+        showStandardStreams = true
+    }
+}
+
 tasks.register<Jar>("javadocJar") {
     dependsOn("dokkaJavadoc")
     group = "documentation"

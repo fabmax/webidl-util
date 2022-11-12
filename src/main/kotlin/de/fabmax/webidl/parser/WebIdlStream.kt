@@ -2,11 +2,14 @@ package de.fabmax.webidl.parser
 
 import de.fabmax.webidl.model.IdlType
 import kotlinx.coroutines.channels.Channel
+import java.util.*
 
 class WebIdlStream {
-    val channel = Channel<String>()
+    var channel = Channel<String>(Channel.UNLIMITED)
     var readLines = 0
     var buffer = StringBuilder()
+
+    val contextLines = LinkedList<String>()
 
     private suspend inline fun readUntil(stop: () -> Boolean): Boolean {
         while (!stop()) {
@@ -16,7 +19,12 @@ class WebIdlStream {
                 if (buffer.isNotEmpty()) {
                     buffer.append("\n")
                 }
-                buffer.append(nextLine.getOrThrow().trim()).replace(whitespaceRegex, " ")
+                val appendLine = nextLine.getOrThrow()
+                buffer.append(appendLine.trim()).replace(whitespaceRegex, " ")
+                contextLines.addLast(appendLine)
+                while (contextLines.size > 4) {
+                    contextLines.removeFirst()
+                }
             } else {
                 // channel was closed
                 return false
@@ -58,56 +66,53 @@ class WebIdlStream {
         return pollUntilPattern(whitespaceRegex, null)?.first ?: buffer.toString()
     }
 
-    suspend fun popToken(token: String) {
+    suspend fun popToken(token: String, parser: WebIdlParser.Parser) {
         readCharacters(token.length)
         if (!buffer.startsWith(token)) {
-            throw WebIdlParser.ParserException("Missing expected token: \"$token\" (current buffer content: \"$buffer\")")
+            parser.parserException("Missing expected token: \"$token\" (current buffer content: \"$buffer\")")
         }
         buffer = StringBuilder(buffer.substring(token.length).dropWhile { it.isWhitespace() })
     }
 
-    suspend fun popIfPresent(token: String): Boolean {
+    suspend fun popIfPresent(token: String, parser: WebIdlParser.Parser): Boolean {
         if (startsWith(token)) {
-            popToken(token)
+            popToken(token, parser)
             return true
         }
         return false
     }
 
-    suspend fun popUntilPattern(searchPattern: String, abortPattern: String? = null) =
-        popUntilPattern(Regex(searchPattern), abortPattern?.let { Regex(it) })
-
-    suspend fun popUntilPattern(searchPattern: Regex, abortPattern: Regex? = null): Pair<String, String>? {
+    suspend fun popUntilPattern(searchPattern: Regex, abortPattern: Regex?, parser: WebIdlParser.Parser): Pair<String, String>? {
         val s = pollUntilPattern(searchPattern, abortPattern)
         if (s != null) {
-            popToken(s.first)
+            popToken(s.first, parser)
             if (s.second.isNotBlank()) {
-                popToken(s.second.trim())
+                popToken(s.second.trim(), parser)
             }
         }
         return s
     }
 
-    suspend fun popUntilWhitespaceOrEnd(): String {
+    suspend fun popUntilWhitespaceOrEnd(parser: WebIdlParser.Parser): String {
         val s = pollUntilWhitespaceOrEnd()
-        popToken(s)
+        popToken(s, parser)
         return s
     }
 
-    suspend fun parseType(): IdlType {
+    suspend fun parseType(parser: WebIdlParser.Parser): IdlType {
         var isArray = false
         var isUnsigned = false
 
-        var typeName = popUntilWhitespaceOrEnd()
+        var typeName = popUntilWhitespaceOrEnd(parser)
         if (typeName == "unsigned") {
             isUnsigned = true
-            typeName = popUntilWhitespaceOrEnd()
+            typeName = popUntilWhitespaceOrEnd(parser)
         }
         if (typeName == "long") {
             val next = pollUntilWhitespaceOrEnd()
             if (next == "long" || next == "long[]") {
                 typeName = "long $next"
-                popToken(next)
+                popToken(next, parser)
             }
         }
         if (isUnsigned) {
@@ -120,7 +125,7 @@ class WebIdlStream {
         }
         val type = IdlType(typeName, isArray)
         if (!type.isValid()) {
-            throw WebIdlParser.ParserException("Invalid Type: \"$type\"")
+            parser.parserException("Invalid Type: \"$type\"")
         }
         return type
     }

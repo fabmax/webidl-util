@@ -34,6 +34,18 @@ class ParserTest {
         Assert.assertEquals("ErrorCallback", model.interfaces[3].getDecoratorValue("JSImplementation", ""))
     }
 
+    @Test(expected = WebIdlParser.ParserException::class)
+    fun parserTestNoReturnType() {
+        val inStream = ParserTest::class.java.classLoader.getResourceAsStream("bad-ctor.idl")!!
+        WebIdlParser.parseFromInputStream(inStream)
+    }
+
+    @Test(expected = WebIdlParser.ParserException::class)
+    fun parserTestBadEnum() {
+        val inStream = ParserTest::class.java.classLoader.getResourceAsStream("bad-enum.idl")!!
+        WebIdlParser.parseFromInputStream(inStream)
+    }
+
     @Test
     fun generatorJsTest() {
         val inStream = ParserTest::class.java.classLoader.getResourceAsStream("test.idl")!!

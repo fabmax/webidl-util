@@ -7,7 +7,7 @@ interface AnInterface {
 
 [Prefix = "someNamespaceWithSpace::"]
 interface AnotherInterface {
-    void AnInterface();
+    void AnotherInterface();
 
     [Value] AnInterface overloadedFunction([Const, Ref] AnInterface param1);
     [Value] AnInterface overloadedFunction([Const, Ref] AnInterface param1, long secondParam);

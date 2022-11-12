@@ -1,0 +1,5 @@
+SomeNumWithoutKeyword {
+    "SomeNumWithoutKeyword::FOO"
+};
+
+interface Bar { };

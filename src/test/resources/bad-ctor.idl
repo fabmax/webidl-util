@@ -1,0 +1,4 @@
+interface NoReturnTypeCtor {
+    NoReturnTypeCtor();
+    void someFunction();
+};

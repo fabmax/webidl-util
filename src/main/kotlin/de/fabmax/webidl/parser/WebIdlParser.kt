@@ -4,12 +4,13 @@ import de.fabmax.webidl.model.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import java.io.*
 import kotlin.coroutines.CoroutineContext
 
 class WebIdlParser(
-    val modelName: String = "webidl",
+    modelName: String = "webidl",
     val explodeOptionalFunctionParams: Boolean = true
 ) : CoroutineScope {
 
@@ -17,31 +18,35 @@ class WebIdlParser(
     override val coroutineContext: CoroutineContext
         get() = job
 
-    private val parserState = ParserState()
-    private val processorStream = WebIdlStream()
+    private val parserStream = WebIdlStream()
+    private val parserState = ParserState(parserStream)
+    private val rootParser = WebIdlParserType.Root.newParser(parserState) as RootParser
 
-    val parseResult = async {
-        val parser = WebIdlParserType.Root.newParser(parserState) as RootParser
-        parser.builder.name = modelName
-        parser.parse(processorStream)
+    init {
+        rootParser.builder.name = modelName
+    }
+
+    private fun asyncParser() = async {
+        rootParser.parse()
         if (parserState.parserStack.isNotEmpty()) {
             throw IllegalStateException("Unexpected non-empty parser stack")
         }
-        parser.builder.build()
     }
 
-    suspend fun parseStream(inStream: InputStream) {
-        parserState.onNewFile()
+    suspend fun parseStream(inStream: InputStream, fileName: String = "webidl") {
+        parserState.onNewFile(fileName)
+        val parseResult = asyncParser()
         BufferedReader(InputStreamReader(inStream)).use { r ->
             r.lineSequence().forEach {
-                processorStream.channel.send(it)
+                parserStream.channel.send(it)
             }
+            parserStream.channel.close()
         }
+        parseResult.await()
     }
 
-    suspend fun finish(): IdlModel {
-        processorStream.channel.close()
-        return parseResult.await()
+    fun finish(): IdlModel {
+        return rootParser.builder.build()
     }
 
     companion object {
@@ -54,10 +59,10 @@ class WebIdlParser(
 
             return runBlocking {
                 val parser = WebIdlParser(name)
-                directory.listFiles { _, name -> name.endsWith(".idl", true) }?.forEach { idlFile ->
+                directory.walk().filter { it.name.endsWith(".idl", true) }.forEach { idlFile ->
                     println("Parsing $idlFile")
                     FileInputStream(idlFile).use {
-                        parser.parseStream(it)
+                        parser.parseStream(it, idlFile.name)
                     }
                 }
                 parser.finish()
@@ -74,17 +79,18 @@ class WebIdlParser(
         fun parseFromInputStream(inStream: InputStream, modelName: String = "webidl"): IdlModel {
             return runBlocking {
                 val parser = WebIdlParser(modelName)
-                parser.parseStream(inStream)
+                parser.parseStream(inStream, modelName)
                 parser.finish()
             }
         }
     }
 
-    private inner class ParserState {
+    inner class ParserState(val parserStream: WebIdlStream) {
         val parserStack = ArrayDeque<Parser>()
 
         val explodeOptionalFunctionParams: Boolean get() = this@WebIdlParser.explodeOptionalFunctionParams
 
+        var currentFileName = ""
         var sourcePackage = ""
 
         var currentDecorators = mutableSetOf<IdlDecorator>()
@@ -124,114 +130,153 @@ class WebIdlParser(
             }
         }
 
-        fun onNewFile() {
+        fun onNewFile(fileName: String) {
+            currentFileName = fileName
             sourcePackage = ""
+            parserStream.readLines = 0
+            parserStream.channel = Channel(Channel.UNLIMITED)
+            pushParser(rootParser)
         }
     }
 
     class ParserException(msg: String) : Exception(msg)
 
-    private abstract class Parser(val parserState: ParserState, val selfType: WebIdlParserType) {
-        abstract suspend fun parse(stream: WebIdlStream)
+    abstract class Parser(val parserState: ParserState, val selfType: WebIdlParserType) {
+        val stream: WebIdlStream get() = parserState.parserStream
 
-        suspend fun parseChildren(stream: WebIdlStream, termToken: String?) {
+        abstract suspend fun parse(): String?
+
+        suspend fun parseChildren(termToken: String?) {
             var child = selfType.possibleChildren().find { it.matches(stream) }
+            var childTerm: String? = null
             while (child != null && (termToken == null || !stream.startsWith(termToken))) {
-                child.newParser(parserState).parse(stream)
+                childTerm = child.newParser(parserState).parse()
                 child = selfType.possibleChildren().find { it.matches(stream) }
             }
+
+            if (child == null && stream.buffer.isNotEmpty()
+                && termToken?.let { stream.buffer.startsWith(it) || it == childTerm } != true) {
+                parserException("Unexpected idl content")
+            }
+
             if (termToken != null && stream.startsWith(termToken)) {
-                stream.popToken(termToken)
+                popToken(termToken)
             }
         }
+
+        fun parserException(message: String): Nothing {
+            var lineNum = 1 + parserState.parserStream.readLines - parserState.parserStream.contextLines.size
+            throw ParserException("Invalid $selfType: $message, somewhere around [${parserState.currentFileName}:${parserState.parserStream.readLines}]\n" +
+                    parserState.parserStream.contextLines.joinToString(separator = "\n") { " > ${lineNum++}: $it" })
+        }
+
+        protected suspend fun popToken(token: String) = parserState.parserStream.popToken(token, this)
+
+        protected suspend fun popUntilPattern(searchPattern: String, abortPattern: String? = null) =
+            popUntilPattern(Regex(searchPattern), abortPattern?.let { Regex(it) })
+
+        protected suspend fun popUntilPattern(searchPattern: Regex, abortPattern: Regex? = null): Pair<String, String>? =
+                parserState.parserStream.popUntilPattern(searchPattern, abortPattern, this)
+
+        protected suspend fun popIfPresent(token: String): Boolean =
+            parserState.parserStream.popIfPresent(token, this)
+
+        protected suspend fun parseType(): IdlType = parserState.parserStream.parseType(this)
     }
 
-    private class RootParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Root) {
+    class RootParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Root) {
         val builder = IdlModel.Builder()
 
-        override suspend fun parse(stream: WebIdlStream) {
-            parseChildren(stream, null)
+        override suspend fun parse(): String? {
+            parseChildren(null)
             parserState.popParser()
+            return null
         }
     }
 
-    private class LineCommentParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.LineComment) {
-        override suspend fun parse(stream: WebIdlStream) {
-            stream.popToken("//")
-            parserState.currentComment = stream.popUntilPattern("\\n")?.first
+    class LineCommentParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.LineComment) {
+        override suspend fun parse(): String? {
+            popToken("//")
+            parserState.currentComment = popUntilPattern("\\n")?.first
             parserState.popParser()
+            return null
         }
     }
 
-    private class BlockCommentParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.LineComment) {
-        override suspend fun parse(stream: WebIdlStream) {
-            stream.popToken("/*")
-            parserState.currentComment = stream.popUntilPattern("\\*/")?.first?.replace("\n", "\\n")
+    class BlockCommentParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.LineComment) {
+        override suspend fun parse(): String? {
+            popToken("/*")
+            val popComment = popUntilPattern("\\*/")
+            parserState.currentComment = popComment?.first?.replace("\n", "\\n")
             parserState.popParser()
+            return popComment?.second
         }
     }
 
-    private class InterfaceParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Interface) {
+    class InterfaceParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Interface) {
         lateinit var builder: IdlInterface.Builder
 
-        override suspend fun parse(stream: WebIdlStream) {
-            stream.popToken("interface")
+        override suspend fun parse(): String {
+            popToken("interface")
 
-            val interfaceName = stream.popUntilPattern("\\{") ?: throw ParserException("Failed parsing interface name")
+            val interfaceName = popUntilPattern("\\{") ?: parserException("Failed parsing interface name")
             builder = IdlInterface.Builder(interfaceName.first)
             builder.sourcePackage = parserState.sourcePackage
             parserState.popDecorators(builder)
             parserState.parentParser<RootParser>().builder.addInterface(builder)
 
-            parseChildren(stream, "}")
+            parseChildren("}")
 
-            stream.popToken(";")
+            popToken(";")
             parserState.popParser()
+            return interfaceName.second
         }
     }
 
-    private class FunctionParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Function) {
+    class FunctionParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Function) {
         lateinit var builder: IdlFunction.Builder
 
-        override suspend fun parse(stream: WebIdlStream) {
-            val isStatic = stream.popIfPresent("static")
-            val type = stream.parseType()
-            val name = stream.popUntilPattern("\\(") ?: throw ParserException("Failed parsing function name")
+        override suspend fun parse(): String {
+            val isStatic = popIfPresent("static")
+            val type = parseType()
+            val name = popUntilPattern("\\(") ?: parserException("Failed parsing function name")
             builder = IdlFunction.Builder(name.first, type)
             builder.explodeOptionalFunctionParams = parserState.explodeOptionalFunctionParams
             builder.isStatic = isStatic
             parserState.popDecorators(builder)
             parserState.parentParser<InterfaceParser>().builder.addFunction(builder)
 
-            parseChildren(stream, ")")
+            parseChildren(")")
 
-            stream.popToken(";")
+            popToken(";")
             parserState.popParser()
+            return ";"
         }
     }
 
-    private class FunctionParameterParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.FunctionParameter) {
+    class FunctionParameterParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.FunctionParameter) {
         lateinit var builder: IdlFunctionParameter.Builder
 
-        override suspend fun parse(stream: WebIdlStream) {
-            val isOptional = stream.popIfPresent("optional")
-            val paramType = stream.parseType()
-            val name = stream.popUntilPattern("[,\\)]") ?: throw ParserException("Failed parsing function parameter")
+        override suspend fun parse(): String {
+            val isOptional = popIfPresent("optional")
+            val paramType = parseType()
+            val name = popUntilPattern("[,\\)]") ?: parserException("Failed parsing function parameter")
             builder = IdlFunctionParameter.Builder(name.first, paramType)
             builder.isOptional = isOptional
             parserState.popDecorators(builder)
             parserState.parentParser<FunctionParser>().builder.addParameter(builder)
 
             parserState.popParser()
+            return name.second
         }
     }
 
-    private class DecoratorParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Function) {
-        override suspend fun parse(stream: WebIdlStream) {
-            stream.popToken("[")
+    class DecoratorParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Function) {
+        override suspend fun parse(): String? {
+            popToken("[")
             var sep: String? = ","
             while (sep == ",") {
-                val tok = stream.popUntilPattern("[,\\]]") ?: throw ParserException("Failed parsing decorator list")
+                val tok = popUntilPattern("[,\\]]") ?: parserException("Failed parsing decorator list")
                 val splitIdx = tok.first.indexOf('=')
                 val decorator = if (splitIdx > 0) {
                     var value = tok.first.substring(splitIdx+1).trim()
@@ -246,16 +291,17 @@ class WebIdlParser(
                 sep = tok.second
             }
             parserState.popParser()
+            return sep
         }
     }
 
-    private class AttributeParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Function) {
+    class AttributeParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Function) {
         lateinit var builder: IdlAttribute.Builder
 
-        override suspend fun parse(stream: WebIdlStream) {
-            val qualifiers = stream.popUntilPattern("attribute") ?: throw ParserException("Failed parsing attribute")
-            val type = stream.parseType()
-            val name = stream.popUntilPattern(";") ?: throw ParserException("Failed parsing attribute")
+        override suspend fun parse(): String {
+            val qualifiers = popUntilPattern("attribute") ?: parserException("Failed parsing attribute")
+            val type = parseType()
+            val name = popUntilPattern(";") ?: parserException("Failed parsing attribute")
             builder = IdlAttribute.Builder(name.first, type)
             builder.isStatic = qualifiers.first.contains("static")
             builder.isReadonly = qualifiers.first.contains("readonly")
@@ -263,28 +309,30 @@ class WebIdlParser(
             parserState.parentParser<InterfaceParser>().builder.addAttribute(builder)
 
             parserState.popParser()
+            return name.second
         }
     }
 
-    private class ImplementsParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Function) {
-        override suspend fun parse(stream: WebIdlStream) {
-            val concreteIf = stream.popUntilPattern("\\simplements\\s")?.first ?: throw ParserException("Failed parsing interface name")
-            val superIf = stream.popUntilPattern(";")?.first ?: throw ParserException("Failed parsing super interface name")
+    class ImplementsParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Function) {
+        override suspend fun parse(): String {
+            val concreteIf = popUntilPattern("\\simplements\\s")?.first ?: parserException("Failed parsing interface name")
+            val superIf = popUntilPattern(";")?.first ?: parserException("Failed parsing super interface name")
 
             if (!IdlType.isValidTypeName(concreteIf) || !IdlType.isValidTypeName(superIf)) {
-                throw ParserException("Invalid implements statement: $concreteIf implements $superIf")
+                parserException("Invalid implements statement: $concreteIf implements $superIf")
             }
             parserState.parentParser<RootParser>().builder.addImplements(concreteIf, superIf)
             parserState.popParser()
+            return ";"
         }
     }
 
-    private class EnumParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Interface) {
+    class EnumParser(parserState: ParserState) : Parser(parserState, WebIdlParserType.Interface) {
         lateinit var builder: IdlEnum.Builder
 
-        override suspend fun parse(stream: WebIdlStream) {
-            stream.popToken("enum")
-            val name = stream.popUntilPattern("\\{") ?: throw ParserException("Failed parsing enum name")
+        override suspend fun parse(): String {
+            popToken("enum")
+            val name = popUntilPattern("\\{") ?: parserException("Failed parsing enum name")
             builder = IdlEnum.Builder(name.first)
             builder.sourcePackage = parserState.sourcePackage
             parserState.popDecorators(builder)
@@ -292,23 +340,24 @@ class WebIdlParser(
 
             var sep: String? = ","
             while (sep == ",") {
-                val next = stream.popUntilPattern("[,\\}]") ?: throw ParserException("Failed values of enum ${name.first}")
+                val next = popUntilPattern("[,\\}]") ?: parserException("Failed values of enum ${name.first}")
                 if (next.first.isNotEmpty()) {
                     val valName = next.first.substring(1, next.first.lastIndex)
                     builder.addValue(valName)
                 }
                 sep = next.second
             }
-            stream.popToken(";")
+            popToken(";")
             parserState.popParser()
+            return ";"
         }
     }
 
-    private enum class WebIdlParserType {
+    enum class WebIdlParserType {
         Root {
             override fun possibleChildren() = listOf(Interface, Enum, LineComment, BlockComment, Decorators, Implements)
             override suspend fun matches(stream: WebIdlStream) = false
-            override fun newParser(parserState: ParserState) = parserState.pushParser(RootParser(parserState))
+            override fun newParser(parserState: ParserState) = RootParser(parserState)
         },
 
         Interface {
