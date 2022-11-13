@@ -171,7 +171,7 @@ class JsInterfaceGenerator : CodeGenerator() {
                     package $ktPkg
                 """.trimIndent()).append("\n\n")
                 getInterfacesByPackage(pkg).forEach {
-                    if (it.hasDecorator("JSImplementation")) {
+                    if (it.hasDecorator(IdlDecorator.JS_IMPLEMENTATION)) {
                         it.generateCallback(this, w)
                     } else {
                         it.generate(this, w)
@@ -263,7 +263,7 @@ class JsInterfaceGenerator : CodeGenerator() {
         }
         w.write("\n\n")
         generateExtensionConstructor(w)
-        if (!hasDecorator("NoDelete")) {
+        if (!hasDecorator(IdlDecorator.NO_DELETE)) {
             generateExtensionDestructor(w)
         }
         generateExtensionAttributes(w)

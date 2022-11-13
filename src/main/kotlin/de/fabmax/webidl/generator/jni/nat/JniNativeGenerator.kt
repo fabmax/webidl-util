@@ -10,8 +10,6 @@ class JniNativeGenerator : CodeGenerator() {
     var glueFileName = "glue.h"
     var packagePrefix = ""
 
-    val externallyAllocatableClasses = mutableSetOf<String>()
-
     private lateinit var model: IdlModel
 
     init {
@@ -45,7 +43,7 @@ class JniNativeGenerator : CodeGenerator() {
 
         collectPackages().forEach { pkg ->
             getInterfacesByPackage(pkg).forEach {
-                if (it.hasDecorator("JSImplementation")) {
+                if (it.hasDecorator(IdlDecorator.JS_IMPLEMENTATION)) {
                     it.generateCallbackInterface(w)
                 } else {
                     it.generate(w)
@@ -105,7 +103,7 @@ class JniNativeGenerator : CodeGenerator() {
 
     private fun IdlInterface.generate(w: Writer) {
         w.write("\n// $name\n")
-        if (name in externallyAllocatableClasses) {
+        if (hasDecorator(IdlDecorator.STACK_ALLOCATABLE)) {
             generateSizeOf(w)
             val ctors = functions.filter { it.name == name }
             val isOverloaded = ctors.size > 1
@@ -121,7 +119,7 @@ class JniNativeGenerator : CodeGenerator() {
                 generateFunction(func, isOverloaded, w)
             }
         }
-        if (!hasDecorator("NoDelete")) {
+        if (!hasDecorator(IdlDecorator.NO_DELETE)) {
             generateDtor(w)
         }
         attributes.forEach {

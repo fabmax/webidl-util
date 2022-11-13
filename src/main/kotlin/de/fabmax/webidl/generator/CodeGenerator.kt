@@ -36,11 +36,11 @@ abstract class CodeGenerator {
     }
 
     fun firstCharToUpper(str: String): String {
-        return str[0].toUpperCase() + str.substring(1)
+        return str[0].uppercaseChar() + str.substring(1)
     }
 
     fun firstCharToLower(str: String): String {
-        return str[0].toLowerCase() + str.substring(1)
+        return str[0].uppercaseChar() + str.substring(1)
     }
 }
 

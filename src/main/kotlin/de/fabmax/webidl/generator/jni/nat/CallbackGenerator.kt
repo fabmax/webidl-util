@@ -2,6 +2,7 @@ package de.fabmax.webidl.generator.jni.nat
 
 import de.fabmax.webidl.generator.indent
 import de.fabmax.webidl.generator.prependIndent
+import de.fabmax.webidl.model.IdlDecorator
 import de.fabmax.webidl.model.IdlInterface
 import de.fabmax.webidl.model.IdlModel
 import java.io.Writer
@@ -66,7 +67,7 @@ internal class CallbackGenerator(val model: IdlModel) {
     }
 
     fun generateCallbackClasses(w: Writer) {
-        model.interfaces.filter { it.hasDecorator("JSImplementation") }.forEach { it.generateCallbackClass(w) }
+        model.interfaces.filter { it.hasDecorator(IdlDecorator.JS_IMPLEMENTATION) }.forEach { it.generateCallbackClass(w) }
     }
 
     private fun IdlInterface.generateCallbackClass(w: Writer) {

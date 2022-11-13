@@ -7,15 +7,15 @@ internal fun IdlInterface.getNativeType(model: IdlModel): NativeType {
 }
 
 internal fun IdlFunction.getNativeType(model: IdlModel): NativeType {
-    return NativeType(model, returnType, hasDecorator("Value"), hasDecorator("Ref"), hasDecorator("Const"))
+    return NativeType(model, returnType, hasDecorator(IdlDecorator.VALUE), hasDecorator(IdlDecorator.REF), hasDecorator(IdlDecorator.CONST))
 }
 
 internal fun IdlFunctionParameter.getNativeType(model: IdlModel): NativeType {
-    return NativeType(model, type, hasDecorator("Value"), hasDecorator("Ref"), hasDecorator("Const"))
+    return NativeType(model, type, hasDecorator(IdlDecorator.VALUE), hasDecorator(IdlDecorator.REF), hasDecorator(IdlDecorator.CONST))
 }
 
 internal fun IdlAttribute.getNativeType(model: IdlModel): NativeType {
-    return NativeType(model, type, hasDecorator("Value"), hasDecorator("Ref"), hasDecorator("Const"))
+    return NativeType(model, type, hasDecorator(IdlDecorator.VALUE), hasDecorator(IdlDecorator.REF), hasDecorator(IdlDecorator.CONST))
 }
 
 internal class NativeType(model: IdlModel, val idlType: IdlType, val isValue: Boolean, val isRef: Boolean, val isConst: Boolean) {

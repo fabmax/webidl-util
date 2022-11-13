@@ -13,12 +13,6 @@ class JniJavaGenerator : CodeGenerator() {
     var packagePrefix = ""
 
     /**
-     * List of WebIDL interfaces / classes which should be stack allocatable (i.e. can be created
-     * at a user-specified address). This can be beneficial for small high-frequency objects.
-     */
-    val externallyAllocatableClasses = mutableSetOf<String>()
-
-    /**
      * If true simple address-based allocation methods are generated for stack allocatable classes.
      */
     var generateSimpleStackAllocators = true
@@ -27,18 +21,6 @@ class JniJavaGenerator : CodeGenerator() {
      * If true interface-based allocation methods are generated for stack allocatable classes.
      */
     var generateInterfaceStackAllocators = true
-
-    /**
-     * List of interface attributes, which will be generated with nullable types. Expected format:
-     * "InterfaceName.attributeName"
-     */
-    val nullableAttributes = mutableSetOf<String>()
-
-    /**
-     * List of function parameters, which will be generated with nullable types. Expected format:
-     * "InterfaceName.functionName" to "parameterName"
-     */
-    val nullableParameters = mutableSetOf<Pair<String, String>>()
 
     /**
      * Java code inserted into a static { } block in NativeObject and each enum class. Can be used
@@ -266,7 +248,7 @@ class JniJavaGenerator : CodeGenerator() {
     }
 
     private fun IdlInterface.isCallback(): Boolean {
-        return hasDecorator("JSImplementation")
+        return hasDecorator(IdlDecorator.JS_IMPLEMENTATION)
     }
 
     private fun IdlInterface.hasDefaultConstructor(): Boolean {
@@ -359,7 +341,7 @@ class JniJavaGenerator : CodeGenerator() {
     private fun IdlInterface.generate(javaClass: JavaClass) = javaClass.generateSource(createOutFileWriter(javaClass.path)) {
         val ctorFunctions = functions.filter { it.name == name }
 
-        if (name in externallyAllocatableClasses) {
+        if (hasDecorator(IdlDecorator.STACK_ALLOCATABLE)) {
             generateSizeOf(this)
             append("    // Placed Constructors\n\n")
             ctorFunctions.forEach { ctor ->
@@ -374,7 +356,7 @@ class JniJavaGenerator : CodeGenerator() {
             }
         }
 
-        if (!hasDecorator("NoDelete")) {
+        if (!hasDecorator(IdlDecorator.NO_DELETE)) {
             append("    // Destructor\n\n")
             generateDestructor(this)
         }
@@ -398,12 +380,12 @@ class JniJavaGenerator : CodeGenerator() {
         }
     }
 
-    private fun IdlFunctionParameter.isNullable(idlIf: IdlInterface, idlFunc: IdlFunction): Boolean {
-        return ("${idlIf.name}.${idlFunc.name}" to name) in nullableParameters
+    private fun IdlFunctionParameter.isNullable(): Boolean {
+        return hasDecorator(IdlDecorator.NULLABLE)
     }
 
-    private fun IdlAttribute.isNullable(idlIf: IdlInterface): Boolean {
-        return "${idlIf.name}.$name" in nullableAttributes
+    private fun IdlAttribute.isNullable(): Boolean {
+        return hasDecorator(IdlDecorator.NULLABLE)
     }
 
     private fun generateSizeOf(w: Writer) {
@@ -418,7 +400,7 @@ class JniJavaGenerator : CodeGenerator() {
         val nativeToJavaParams = ctorFunc.parameters.zip(ctorFunc.parameters.map { JavaType(it.type) })
         var nativeArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
         var javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
-        var callArgs = nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable(this, ctorFunc)) }
+        var callArgs = nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable()) }
 
         if (nativeArgs.isNotEmpty()) {
             nativeArgs = ", $nativeArgs"
@@ -473,7 +455,7 @@ class JniJavaGenerator : CodeGenerator() {
         val nativeToJavaParams = ctorFunc.parameters.zip(ctorFunc.parameters.map { JavaType(it.type) })
         val nativeArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
         val javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
-        val callArgs = nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable(this, ctorFunc)) }
+        val callArgs = nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable()) }
 
         val paramDocs = mutableMapOf<String, String>()
         nativeToJavaParams.forEach { (nat, java) ->
@@ -505,7 +487,7 @@ class JniJavaGenerator : CodeGenerator() {
         """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
-    private fun IdlInterface.generateFunction(func: IdlFunction, w: Writer) {
+    private fun generateFunction(func: IdlFunction, w: Writer) {
         val nativeToJavaParams = func.parameters.zip(func.parameters.map { JavaType(it.type) })
         val staticMod = if (func.isStatic) " static" else ""
         val javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
@@ -517,7 +499,7 @@ class JniJavaGenerator : CodeGenerator() {
             if (nativeArgs.isNotEmpty()) { nativeArgs += ", " }
             if (callArgs.isNotEmpty()) { callArgs += ", " }
             nativeArgs += nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
-            callArgs += nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable(this, func)) }
+            callArgs += nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable()) }
         }
         val nullCheck = if (func.isStatic) "" else  "\n${indent(16)}checkNotNull();"
 
@@ -561,7 +543,7 @@ class JniJavaGenerator : CodeGenerator() {
         """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
-    private fun IdlInterface.generateSet(attrib: IdlAttribute, w: Writer) {
+    private fun generateSet(attrib: IdlAttribute, w: Writer) {
         val javaType = JavaType(attrib.type)
         val methodName = "set${firstCharToUpper(attrib.name)}"
 
@@ -587,7 +569,7 @@ class JniJavaGenerator : CodeGenerator() {
         generateJavadoc(paramDocs, "", w)
         w.append("""
             public$staticMod void $methodName($arrayModPub${javaType.javaType} value) {$nullCheck
-                _$methodName($addressCall$arrayCallMod, ${javaType.unbox("value", attrib.isNullable(this))});
+                _$methodName($addressCall$arrayCallMod, ${javaType.unbox("value", attrib.isNullable())});
             }
             private static native void _$methodName($nativeSig);
         """.trimIndent().prependIndent(4)).append("\n\n")

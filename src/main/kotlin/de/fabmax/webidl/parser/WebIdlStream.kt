@@ -66,7 +66,7 @@ class WebIdlStream {
         return pollUntilPattern(whitespaceRegex, null)?.first ?: buffer.toString()
     }
 
-    suspend fun popToken(token: String, parser: WebIdlParser.Parser) {
+    suspend fun popToken(token: String, parser: ElementParser) {
         readCharacters(token.length)
         if (!buffer.startsWith(token)) {
             parser.parserException("Missing expected token: \"$token\" (current buffer content: \"$buffer\")")
@@ -74,7 +74,7 @@ class WebIdlStream {
         buffer = StringBuilder(buffer.substring(token.length).dropWhile { it.isWhitespace() })
     }
 
-    suspend fun popIfPresent(token: String, parser: WebIdlParser.Parser): Boolean {
+    suspend fun popIfPresent(token: String, parser: ElementParser): Boolean {
         if (startsWith(token)) {
             popToken(token, parser)
             return true
@@ -82,7 +82,7 @@ class WebIdlStream {
         return false
     }
 
-    suspend fun popUntilPattern(searchPattern: Regex, abortPattern: Regex?, parser: WebIdlParser.Parser): Pair<String, String>? {
+    suspend fun popUntilPattern(searchPattern: Regex, abortPattern: Regex?, parser: ElementParser): Pair<String, String>? {
         val s = pollUntilPattern(searchPattern, abortPattern)
         if (s != null) {
             popToken(s.first, parser)
@@ -93,13 +93,13 @@ class WebIdlStream {
         return s
     }
 
-    suspend fun popUntilWhitespaceOrEnd(parser: WebIdlParser.Parser): String {
+    suspend fun popUntilWhitespaceOrEnd(parser: ElementParser): String {
         val s = pollUntilWhitespaceOrEnd()
         popToken(s, parser)
         return s
     }
 
-    suspend fun parseType(parser: WebIdlParser.Parser): IdlType {
+    suspend fun parseType(parser: ElementParser): IdlType {
         var isArray = false
         var isUnsigned = false
 
