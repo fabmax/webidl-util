@@ -1,11 +1,17 @@
 package de.fabmax.webidl.generator.jni.java
 
 import de.fabmax.webidl.generator.prependIndent
+import de.fabmax.webidl.model.IdlDecoratedElement
+import de.fabmax.webidl.model.IdlEnum
+import de.fabmax.webidl.model.IdlInterface
+import de.fabmax.webidl.parser.CppCommentParser
 import java.io.File
 import java.io.Writer
 import java.util.*
 
-internal class JavaClass(val name: String, val isEnum: Boolean, idlPkg: String, packagePrefix: String) {
+internal class JavaClass(val idlElement: IdlDecoratedElement, idlPkg: String, packagePrefix: String) {
+    val name: String = idlElement.name
+    val isEnum: Boolean = idlElement is IdlEnum
     val javaPkg: String
     val fqn: String
     val fileName = "$name.java"
@@ -24,6 +30,8 @@ internal class JavaClass(val name: String, val isEnum: Boolean, idlPkg: String, 
     var superClass: JavaClass? = null
     val imports = mutableListOf<JavaClass>()
     val importFqns = TreeSet<String>()
+
+    var comments: CppCommentParser.CppClassComments? = null
 
     init {
         javaPkg = when {
@@ -51,6 +59,15 @@ internal class JavaClass(val name: String, val isEnum: Boolean, idlPkg: String, 
     }
 
     fun generateClassStart(w: Writer) {
+        if (comments?.comment?.isNotBlank() == true) {
+            val comment = DoxygenToJavadoc.makeJavadocString(comments!!.comment, idlElement as? IdlInterface, null)
+            w.write(comment)
+            w.write("\n")
+            if (comment.contains("@deprecated")) {
+                w.write("@Deprecated\n")
+            }
+        }
+
         w.write("$visibility ")
         if (modifier.isNotEmpty()) {
             w.write("$modifier ")

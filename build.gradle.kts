@@ -42,11 +42,6 @@ tasks.register<Jar>("javadocJar") {
     from("$buildDir/dokka/javadoc")
 }
 
-val compileKotlin: KotlinCompile by tasks
-compileKotlin.kotlinOptions.apply {
-    freeCompilerArgs = freeCompilerArgs + "-Xopt-in=kotlin.RequiresOptIn"
-}
-
 publishing {
     publications {
         create<MavenPublication>("mavenKotlin") {

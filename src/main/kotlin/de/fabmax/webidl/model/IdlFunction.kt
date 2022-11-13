@@ -5,6 +5,15 @@ class IdlFunction private constructor(builder: Builder) : IdlDecoratedElement(bu
     val isStatic = builder.isStatic
     val parameters = List(builder.parameters.size) { builder.parameters[it].build() }
 
+    var parentInterface: IdlInterface? = null
+        private set
+
+    fun finishModel(parentInterface: IdlInterface) {
+        this.parentModel = parentInterface.parentModel
+        this.parentInterface = parentInterface
+        parameters.forEach { it.finishModel(this) }
+    }
+
     override fun toString(indent: String): String {
         val str = StringBuilder(indent)
         str.append(decoratorsToStringOrEmpty(postfix = " "))

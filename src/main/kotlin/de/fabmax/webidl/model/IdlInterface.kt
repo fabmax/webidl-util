@@ -3,15 +3,19 @@ package de.fabmax.webidl.model
 class IdlInterface(builder: Builder) : IdlDecoratedElement(builder) {
     val attributes = List(builder.attributes.size) { builder.attributes[it].build() }
     val functions: List<IdlFunction>
+    val functionsByName: Map<String, IdlFunction>
     val superInterfaces = builder.superInterfaces.toList()
     val sourcePackage = builder.sourcePackage
 
     init {
-        val mutFuncs = mutableListOf<IdlFunction>()
-        builder.functions.forEach {
-            mutFuncs += it.build()
-        }
-        functions = mutFuncs
+        functions = builder.functions.flatMap { it.build() }
+        functionsByName = functions.associateBy { it.name }
+    }
+
+    fun finishModel(parentModel: IdlModel) {
+        this.parentModel = parentModel
+        attributes.forEach { it.finishModel(this) }
+        functions.forEach { it.finishModel(this) }
     }
 
     override fun toString(indent: String): String {

@@ -18,6 +18,10 @@ class IdlEnum private constructor(builder: Builder) : IdlDecoratedElement(builde
         }
     }
 
+    fun finishModel(parentModel: IdlModel) {
+        this.parentModel = parentModel
+    }
+
     override fun toString(indent: String): String {
         val str = StringBuilder()
         str.append(decoratorsToStringOrEmpty(indent, "\n"))

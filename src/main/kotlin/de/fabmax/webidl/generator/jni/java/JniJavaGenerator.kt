@@ -4,6 +4,7 @@ import de.fabmax.webidl.generator.CodeGenerator
 import de.fabmax.webidl.generator.indent
 import de.fabmax.webidl.generator.prependIndent
 import de.fabmax.webidl.model.*
+import de.fabmax.webidl.parser.CppCommentParser
 import java.io.File
 import java.io.Writer
 import java.util.*
@@ -28,17 +29,30 @@ class JniJavaGenerator : CodeGenerator() {
      */
     var onClassLoad = ""
 
+    /**
+     * List of directories to traverse for .cpp / .h files to grab comments from.
+     */
+    val parseCommentsFromDirectories = mutableListOf<String>()
+
     private lateinit var nativeObject: JavaClass
     private val typeMap = mutableMapOf<String, JavaClass>()
+    private lateinit var model: IdlModel
+
+    private val comments = mutableMapOf<String, CppCommentParser.CppClassComments>()
 
     init {
         outputDirectory = "./generated/java"
     }
 
     override fun generate(model: IdlModel) {
-        deleteDirectory(File(outputDirectory))
+        this.model = model
+        DoxygenToJavadoc.model = model
+        DoxygenToJavadoc.packagePrefix = packagePrefix
 
-        generateFrameworkClasses()
+        deleteDirectory(File(outputDirectory))
+        parseCppComments()
+
+        generateFrameworkClasses(model)
         makeClassMappings(model)
 
         for (pkg in model.collectPackages()) {
@@ -46,8 +60,27 @@ class JniJavaGenerator : CodeGenerator() {
         }
     }
 
-    private fun generateFrameworkClasses() {
-        nativeObject = JavaClass(NATIVE_OBJECT_NAME, false, "", packagePrefix).apply {
+    private fun parseCppComments() {
+        parseCommentsFromDirectories.map { File(it) }.forEach { f ->
+            if (!f.exists()) {
+                System.err.println("Comment path does not exist: ${f.absolutePath}")
+            } else {
+                println("Parsing comments from .cpp/.h files in $f")
+                CppCommentParser.parseComments(f).forEach { comments[it.name] = it }
+            }
+        }
+    }
+
+    private fun generateFrameworkClasses(model: IdlModel) {
+        val fwNativeObj = IdlInterface.Builder(NATIVE_OBJECT_NAME).build()
+        val fwThreadManager = IdlInterface.Builder("JniThreadManager").build()
+        val fwJavaNativeRef = IdlInterface.Builder("JavaNativeRef").build()
+
+        fwNativeObj.finishModel(model)
+        fwThreadManager.finishModel(model)
+        fwJavaNativeRef.finishModel(model)
+
+        nativeObject = JavaClass(fwNativeObj, "", packagePrefix).apply {
             protectedDefaultContructor = true
             generatePointerWrapMethods = false
             staticCode = onClassLoad
@@ -95,7 +128,7 @@ class JniJavaGenerator : CodeGenerator() {
             """.trimIndent().prependIndent(4)).append('\n')
         }
 
-        val jniThreadManager = JavaClass("JniThreadManager", false, "", packagePrefix).apply {
+        val jniThreadManager = JavaClass(fwThreadManager, "", packagePrefix).apply {
             protectedDefaultContructor = false
             generatePointerWrapMethods = false
             staticCode = onClassLoad
@@ -116,7 +149,7 @@ class JniJavaGenerator : CodeGenerator() {
             """.trimIndent().prependIndent(4))
         }
 
-        val javaNativeRef = JavaClass("JavaNativeRef", false, "", packagePrefix).apply {
+        val javaNativeRef = JavaClass(fwJavaNativeRef, "", packagePrefix).apply {
             protectedDefaultContructor = false
             generatePointerWrapMethods = false
             staticCode = onClassLoad
@@ -171,7 +204,7 @@ class JniJavaGenerator : CodeGenerator() {
         // 1st pass collect all interface/class and enum types
         for (idlPkg in model.collectPackages()) {
             for (idlIf in model.getInterfacesByPackage(idlPkg)) {
-                typeMap[idlIf.name] = JavaClass(idlIf.name, false, idlPkg, packagePrefix).apply {
+                typeMap[idlIf.name] = JavaClass(idlIf, idlPkg, packagePrefix).apply {
                     protectedDefaultContructor = !idlIf.hasDefaultConstructor() && !idlIf.isCallback()
                     generatePointerWrapMethods = true
                     // no need to include static onClassLoad code here as it is inserted into NativeObject, which
@@ -179,7 +212,7 @@ class JniJavaGenerator : CodeGenerator() {
                 }
             }
             for (idlEn in model.getEnumsByPackage(idlPkg)) {
-                typeMap[idlEn.name] = JavaClass(idlEn.name, true, idlPkg, packagePrefix).apply {
+                typeMap[idlEn.name] = JavaClass(idlEn, idlPkg, packagePrefix).apply {
                     protectedDefaultContructor = false
                     generatePointerWrapMethods = false
                     staticCode = onClassLoad
@@ -218,6 +251,8 @@ class JniJavaGenerator : CodeGenerator() {
             }
 
             val javaClass = typeMap[idlIf.name] ?: throw IllegalStateException("Unknown idl type: ${idlIf.name}")
+            javaClass.comments = comments[javaClass.name]
+
             when {
                 idlIf.isCallback() -> {
                     // callback classes implement the type specified by JSImplementation decorator
@@ -352,7 +387,7 @@ class JniJavaGenerator : CodeGenerator() {
         if (ctorFunctions.isNotEmpty()) {
             append("    // Constructors\n\n")
             ctorFunctions.forEach { ctor ->
-                generateConstructor(ctor, this)
+                generateConstructor(javaClass, ctor, this)
             }
         }
 
@@ -375,7 +410,7 @@ class JniJavaGenerator : CodeGenerator() {
         if (nonCtorFunctions.isNotEmpty()) {
             append("    // Functions\n\n")
             nonCtorFunctions.forEach { func ->
-                generateFunction(func, this)
+                generateFunction(javaClass, func, this)
             }
         }
     }
@@ -451,17 +486,26 @@ class JniJavaGenerator : CodeGenerator() {
         w.append("    private static native void __placement_new_${ctorFunc.name}(long address$nativeArgs);\n\n")
     }
 
-    private fun IdlInterface.generateConstructor(ctorFunc: IdlFunction, w: Writer) {
+    private fun IdlInterface.generateConstructor(javaClass: JavaClass, ctorFunc: IdlFunction, w: Writer) {
         val nativeToJavaParams = ctorFunc.parameters.zip(ctorFunc.parameters.map { JavaType(it.type) })
         val nativeArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
         val javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
         val callArgs = nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable()) }
 
-        val paramDocs = mutableMapOf<String, String>()
-        nativeToJavaParams.forEach { (nat, java) ->
-            paramDocs[nat.name] = makeTypeDoc(java, nat.decorators)
+        javaClass.comments?.functionsComments?.get(ctorFunc.name)?.let {
+            val comment = DoxygenToJavadoc.makeJavadocString(it.comment, ctorFunc.parentInterface, ctorFunc)
+            w.write(comment.prependIndent(4))
+            w.write("\n")
+            if (comment.contains("@deprecated")) {
+                w.write("    @Deprecated\n")
+            }
+        } ?: run {
+            val paramDocs = mutableMapOf<String, String>()
+            nativeToJavaParams.forEach { (nat, java) ->
+                paramDocs[nat.name] = makeTypeDoc(java, nat.decorators)
+            }
+            generateJavadoc(paramDocs, "", w)
         }
-        generateJavadoc(paramDocs, "", w)
 
         w.append("""
             public $name($javaArgs) {
@@ -487,7 +531,7 @@ class JniJavaGenerator : CodeGenerator() {
         """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
-    private fun generateFunction(func: IdlFunction, w: Writer) {
+    private fun generateFunction(javaClass: JavaClass, func: IdlFunction, w: Writer) {
         val nativeToJavaParams = func.parameters.zip(func.parameters.map { JavaType(it.type) })
         val staticMod = if (func.isStatic) " static" else ""
         val javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
@@ -503,12 +547,21 @@ class JniJavaGenerator : CodeGenerator() {
         }
         val nullCheck = if (func.isStatic) "" else  "\n${indent(16)}checkNotNull();"
 
-        val paramDocs = mutableMapOf<String, String>()
-        nativeToJavaParams.forEach { (nat, java) ->
-            paramDocs[nat.name] = makeTypeDoc(java, nat.decorators)
+        javaClass.comments?.functionsComments?.get(func.name)?.let {
+            val comment = DoxygenToJavadoc.makeJavadocString(it.comment, func.parentInterface, func)
+            w.write(comment.prependIndent(4))
+            w.write("\n")
+            if (comment.contains("@deprecated")) {
+                w.write("    @Deprecated\n")
+            }
+        } ?: run {
+            val paramDocs = mutableMapOf<String, String>()
+            nativeToJavaParams.forEach { (nat, java) ->
+                paramDocs[nat.name] = makeTypeDoc(java, nat.decorators)
+            }
+            val returnDoc = if (returnType.idlType.isVoid) "" else makeTypeDoc(returnType, func.decorators)
+            generateJavadoc(paramDocs, returnDoc, w)
         }
-        val returnDoc = if (returnType.idlType.isVoid) "" else makeTypeDoc(returnType, func.decorators)
-        generateJavadoc(paramDocs, returnDoc, w)
 
         w.append("""
             public$staticMod ${returnType.javaType} ${func.name}($javaArgs) {$nullCheck

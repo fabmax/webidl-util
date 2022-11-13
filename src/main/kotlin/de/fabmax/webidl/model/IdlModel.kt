@@ -1,15 +1,20 @@
 package de.fabmax.webidl.model
 
 import java.util.*
-import kotlin.NoSuchElementException
 
 class IdlModel private constructor(builder: Builder) : IdlElement(builder) {
     val interfaces: List<IdlInterface>
     val enums: List<IdlEnum>
 
+    val interfacesByName: Map<String, IdlInterface>
+
     init {
         interfaces = List(builder.interfaces.size) { builder.interfaces[it].build() }
+        interfacesByName = interfaces.associateBy { it.name }
         enums = List(builder.enums.size) { builder.enums[it].build() }
+
+        interfaces.forEach { it.finishModel(this) }
+        enums.forEach { it.finishModel(this) }
     }
 
     fun collectPackages(): SortedSet<String> {
