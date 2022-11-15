@@ -1,13 +1,15 @@
 package de.fabmax.webidl.generator.jni.java
 
 import de.fabmax.webidl.generator.prependIndent
-import de.fabmax.webidl.model.IdlDecoratedElement
-import de.fabmax.webidl.model.IdlEnum
-import de.fabmax.webidl.model.IdlInterface
-import de.fabmax.webidl.parser.CppCommentParser
+import de.fabmax.webidl.model.*
+import de.fabmax.webidl.parser.CppAttributeComment
+import de.fabmax.webidl.parser.CppClassComments
+import de.fabmax.webidl.parser.CppComments
+import de.fabmax.webidl.parser.CppMethodComment
 import java.io.File
 import java.io.Writer
 import java.util.*
+import kotlin.math.abs
 
 internal class JavaClass(val idlElement: IdlDecoratedElement, idlPkg: String, packagePrefix: String) {
     val name: String = idlElement.name
@@ -31,7 +33,7 @@ internal class JavaClass(val idlElement: IdlDecoratedElement, idlPkg: String, pa
     val imports = mutableListOf<JavaClass>()
     val importFqns = TreeSet<String>()
 
-    var comments: CppCommentParser.CppClassComments? = null
+    var comments: CppComments? = null
 
     init {
         javaPkg = when {
@@ -40,6 +42,42 @@ internal class JavaClass(val idlElement: IdlDecoratedElement, idlPkg: String, pa
             else -> "$packagePrefix.$idlPkg"
         }
         fqn = if (javaPkg.isEmpty()) name else "$javaPkg.$name"
+    }
+
+    fun getMethodComment(method: IdlFunction): CppMethodComment? {
+        val comments = this.comments as? CppClassComments ?: return null
+        val funcs = comments.methods[method.name]?.filter { it.comment != null } ?: return null
+
+        val bestFunc = funcs.find { it.matchesParameters(method) }
+        return if (bestFunc == null && funcs.isNotEmpty()) {
+//            println("$name.${method.name}: warn no method with matching param names found, choosing any")
+//            println("    idl parameters: ${method.parameters.map { "${it.name}: ${it.type.typeName}" }}")
+//            println("    cpp candidates:")
+//            funcs.forEach { f -> println("                    ${f.parameters.map { "${it.name}: ${it.type}" }}") }
+
+            funcs.minBy { abs(it.parameters.size - method.parameters.size) }
+        } else {
+            bestFunc
+        }
+    }
+
+    private fun CppMethodComment.matchesParameters(idlMethod: IdlFunction): Boolean {
+        if (parameters.size < idlMethod.parameters.size) {
+            // cpp method signature has too few parameters
+            return false
+        }
+        if (parameters.count { !it.isOptional } > idlMethod.parameters.size) {
+            // cpp method has more non-optional params than idl method
+            return false
+        }
+        return parameters.zip(idlMethod.parameters).all { (cpp, idl) ->
+            cpp.name == idl.name || cpp.type.contains(idl.type.typeName)
+        }
+    }
+
+    fun getAttributeComment(attribute: IdlAttribute): CppAttributeComment? {
+        val comments = this.comments as? CppClassComments ?: return null
+        return comments.attributes[attribute.name]
     }
 
     fun generatePackage(w: Writer) {
@@ -60,7 +98,7 @@ internal class JavaClass(val idlElement: IdlDecoratedElement, idlPkg: String, pa
 
     fun generateClassStart(w: Writer) {
         if (comments?.comment?.isNotBlank() == true) {
-            val comment = DoxygenToJavadoc.makeJavadocString(comments!!.comment, idlElement as? IdlInterface, null)
+            val comment = DoxygenToJavadoc.makeJavadocString(comments!!.comment!!, idlElement as? IdlInterface, null)
             w.write(comment)
             w.write("\n")
             if (comment.contains("@deprecated")) {

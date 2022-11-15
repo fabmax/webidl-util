@@ -4,7 +4,7 @@ import de.fabmax.webidl.generator.CodeGenerator
 import de.fabmax.webidl.generator.indent
 import de.fabmax.webidl.generator.prependIndent
 import de.fabmax.webidl.model.*
-import de.fabmax.webidl.parser.CppCommentParser
+import de.fabmax.webidl.parser.*
 import java.io.File
 import java.io.Writer
 import java.util.*
@@ -38,7 +38,7 @@ class JniJavaGenerator : CodeGenerator() {
     private val typeMap = mutableMapOf<String, JavaClass>()
     private lateinit var model: IdlModel
 
-    private val comments = mutableMapOf<String, CppCommentParser.CppClassComments>()
+    private val comments = mutableMapOf<String, CppComments>()
 
     init {
         outputDirectory = "./generated/java"
@@ -65,136 +65,16 @@ class JniJavaGenerator : CodeGenerator() {
             if (!f.exists()) {
                 System.err.println("Comment path does not exist: ${f.absolutePath}")
             } else {
-                println("Parsing comments from .cpp/.h files in $f")
-                CppCommentParser.parseComments(f).forEach { comments[it.name] = it }
+                println("Parsing comments from .h files in $f")
+                CppCommentParser.parseComments(f).forEach { comments[it.className] = it }
             }
         }
     }
 
     private fun generateFrameworkClasses(model: IdlModel) {
-        val fwNativeObj = IdlInterface.Builder(NATIVE_OBJECT_NAME).build()
-        val fwThreadManager = IdlInterface.Builder("JniThreadManager").build()
-        val fwJavaNativeRef = IdlInterface.Builder("JavaNativeRef").build()
-
-        fwNativeObj.finishModel(model)
-        fwThreadManager.finishModel(model)
-        fwJavaNativeRef.finishModel(model)
-
-        nativeObject = JavaClass(fwNativeObj, "", packagePrefix).apply {
-            protectedDefaultContructor = true
-            generatePointerWrapMethods = false
-            staticCode = onClassLoad
-        }
-        nativeObject.generateSource(createOutFileWriter(nativeObject.fileName)) {
-            append("""
-                protected long address = 0L;
-                protected boolean isExternallyAllocated = false;
-                
-                protected NativeObject(long address) {
-                    this.address = address;
-                }
-                
-                public static NativeObject wrapPointer(long address) {
-                    return new NativeObject(address);
-                }
-                
-                protected void checkNotNull() {
-                    if (address == 0L) {
-                        throw new NullPointerException("Native address of " + this + " is 0");
-                    }
-                }
-                
-                public long getAddress() {
-                    return address;
-                }
-                
-                @Override
-                public boolean equals(Object o) {
-                    if (this == o) return true;
-                    if (!(o instanceof NativeObject)) return false;
-                    NativeObject that = (NativeObject) o;
-                    return address == that.address;
-                }
-            
-                @Override
-                public int hashCode() {
-                    return (int) (address ^ (address >>> 32));
-                }
-                
-                @FunctionalInterface
-                public interface Allocator<T> {
-                    long on(T allocator, int alignment, int size);
-                }
-            """.trimIndent().prependIndent(4)).append('\n')
-        }
-
-        val jniThreadManager = JavaClass(fwThreadManager, "", packagePrefix).apply {
-            protectedDefaultContructor = false
-            generatePointerWrapMethods = false
-            staticCode = onClassLoad
-            importFqns += "java.util.concurrent.atomic.AtomicBoolean"
-        }
-        jniThreadManager.generateSource(createOutFileWriter(jniThreadManager.fileName)) {
-            append("""
-                private static AtomicBoolean isInitialized = new AtomicBoolean(false);
-                private static boolean isInitSuccess = false;
-                
-                public static boolean init() {
-                    if (!isInitialized.getAndSet(true)) {
-                        isInitSuccess = _init();
-                    }
-                    return isInitSuccess;
-                }
-                private static native boolean _init();
-            """.trimIndent().prependIndent(4))
-        }
-
-        val javaNativeRef = JavaClass(fwJavaNativeRef, "", packagePrefix).apply {
-            protectedDefaultContructor = false
-            generatePointerWrapMethods = false
-            staticCode = onClassLoad
-            superClass = nativeObject
-        }
-
-        createOutFileWriter(javaNativeRef.fileName).use { w ->
-            javaNativeRef.generatePackage(w)
-            javaNativeRef.generateImports(w)
-
-            w.append("""
-            public class JavaNativeRef<T> extends NativeObject {
-                static {
-                    ${javaNativeRef.staticCode}
-                }
-                
-                private static native long _new_instance(Object javaRef);
-                private static native void _delete_instance(long address);
-                private static native Object _get_java_ref(long address);
-
-                public static <T> JavaNativeRef<T> fromNativeObject(NativeObject nativeObj) {
-                    return new JavaNativeRef<T>(nativeObj != null ? nativeObj.address : 0L);
-                }
-
-                protected JavaNativeRef(long address) {
-                    super(address);
-                }
-
-                public JavaNativeRef(Object javaRef) {
-                    address = _new_instance(javaRef);
-                }
-                
-                @SuppressWarnings("unchecked")
-                public T get() {
-                    checkNotNull();
-                    return (T) _get_java_ref(address);
-                }
-                
-                public void destroy() {
-                    checkNotNull();
-                    _delete_instance(address);
-                }
-            }
-            """.trimIndent())
-        }
+        nativeObject = generateNativeObject(model)
+        generateJniThreadManager(model)
+        generateJavaNativeRef(model, nativeObject)
     }
 
     private fun makeClassMappings(model: IdlModel) {
@@ -207,6 +87,7 @@ class JniJavaGenerator : CodeGenerator() {
                 typeMap[idlIf.name] = JavaClass(idlIf, idlPkg, packagePrefix).apply {
                     protectedDefaultContructor = !idlIf.hasDefaultConstructor() && !idlIf.isCallback()
                     generatePointerWrapMethods = true
+                    comments = this@JniJavaGenerator.comments[idlIf.name] as? CppClassComments
                     // no need to include static onClassLoad code here as it is inserted into NativeObject, which
                     // is the super class of all IdlInterfaces
                 }
@@ -216,6 +97,7 @@ class JniJavaGenerator : CodeGenerator() {
                     protectedDefaultContructor = false
                     generatePointerWrapMethods = false
                     staticCode = onClassLoad
+                    comments = this@JniJavaGenerator.comments[idlEn.name] as? CppEnumComments
                 }
             }
         }
@@ -251,7 +133,6 @@ class JniJavaGenerator : CodeGenerator() {
             }
 
             val javaClass = typeMap[idlIf.name] ?: throw IllegalStateException("Unknown idl type: ${idlIf.name}")
-            javaClass.comments = comments[javaClass.name]
 
             when {
                 idlIf.isCallback() -> {
@@ -399,9 +280,9 @@ class JniJavaGenerator : CodeGenerator() {
         if (attributes.isNotEmpty()) {
             append("    // Attributes\n\n")
             attributes.forEach { attrib ->
-                generateGet(attrib, this)
+                generateGet(javaClass, attrib, this)
                 if (!attrib.isReadonly) {
-                    generateSet(attrib, this)
+                    generateSet(javaClass, attrib, this)
                 }
             }
         }
@@ -492,21 +373,7 @@ class JniJavaGenerator : CodeGenerator() {
         val javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
         val callArgs = nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable()) }
 
-        javaClass.comments?.functionsComments?.get(ctorFunc.name)?.let {
-            val comment = DoxygenToJavadoc.makeJavadocString(it.comment, ctorFunc.parentInterface, ctorFunc)
-            w.write(comment.prependIndent(4))
-            w.write("\n")
-            if (comment.contains("@deprecated")) {
-                w.write("    @Deprecated\n")
-            }
-        } ?: run {
-            val paramDocs = mutableMapOf<String, String>()
-            nativeToJavaParams.forEach { (nat, java) ->
-                paramDocs[nat.name] = makeTypeDoc(java, nat.decorators)
-            }
-            generateJavadoc(paramDocs, "", w)
-        }
-
+        generateFunctionComment(javaClass, ctorFunc, w)
         w.append("""
             public $name($javaArgs) {
                 address = _${ctorFunc.name}($callArgs);
@@ -547,22 +414,7 @@ class JniJavaGenerator : CodeGenerator() {
         }
         val nullCheck = if (func.isStatic) "" else  "\n${indent(16)}checkNotNull();"
 
-        javaClass.comments?.functionsComments?.get(func.name)?.let {
-            val comment = DoxygenToJavadoc.makeJavadocString(it.comment, func.parentInterface, func)
-            w.write(comment.prependIndent(4))
-            w.write("\n")
-            if (comment.contains("@deprecated")) {
-                w.write("    @Deprecated\n")
-            }
-        } ?: run {
-            val paramDocs = mutableMapOf<String, String>()
-            nativeToJavaParams.forEach { (nat, java) ->
-                paramDocs[nat.name] = makeTypeDoc(java, nat.decorators)
-            }
-            val returnDoc = if (returnType.idlType.isVoid) "" else makeTypeDoc(returnType, func.decorators)
-            generateJavadoc(paramDocs, returnDoc, w)
-        }
-
+        generateFunctionComment(javaClass, func, w)
         w.append("""
             public$staticMod ${returnType.javaType} ${func.name}($javaArgs) {$nullCheck
                 ${returnType.boxedReturn("_${func.name}($callArgs)")};
@@ -571,7 +423,40 @@ class JniJavaGenerator : CodeGenerator() {
         """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
-    private fun generateGet(attrib: IdlAttribute, w: Writer) {
+    private fun generateFunctionComment(javaClass: JavaClass, func: IdlFunction, w: Writer) {
+        javaClass.getMethodComment(func)?.let {
+            // we got a doc comment string from parsed c++ header
+            val comment = DoxygenToJavadoc.makeJavadocString(it.comment ?: "", func.parentInterface, func)
+            w.write(comment.prependIndent(4))
+            w.write("\n")
+            if (comment.contains("@deprecated")) {
+                w.write("    @Deprecated\n")
+            }
+
+        } ?: run {
+            // no doc string available, generate some minimal type info
+            val nativeToJavaParams = func.parameters.zip(func.parameters.map { JavaType(it.type) })
+            val returnType = JavaType(func.returnType)
+
+            val paramDocs = mutableMapOf<String, String>()
+            nativeToJavaParams.forEach { (nat, java) ->
+                paramDocs[nat.name] = makeTypeDoc(java, nat.decorators)
+            }
+            val returnDoc = if (returnType.idlType.isVoid) "" else makeTypeDoc(returnType, func.decorators)
+            generateJavadoc(paramDocs, returnDoc, w)
+        }
+    }
+
+    private fun generateAttributeComment(comment: CppAttributeComment, attr: IdlAttribute, w: Writer) {
+        val docStr = DoxygenToJavadoc.makeJavadocString(comment.comment ?: "", attr.parentInterface, null)
+        w.write(docStr.prependIndent(4))
+        w.write("\n")
+        if (docStr.contains("@deprecated")) {
+            w.write("    @Deprecated\n")
+        }
+    }
+
+    private fun generateGet(javaClass: JavaClass, attrib: IdlAttribute, w: Writer) {
         val javaType = JavaType(attrib.type)
         val methodName = "get${firstCharToUpper(attrib.name)}"
 
@@ -583,11 +468,18 @@ class JniJavaGenerator : CodeGenerator() {
         val addressCall = if (attrib.isStatic) "" else "address"
         val nullCheck = if (attrib.isStatic) "" else  "\n${indent(16)}checkNotNull();"
 
-        val paramDocs = mutableMapOf<String, String>()
-        if (attrib.type.isArray) {
-            paramDocs["index"] = "Array index"
+        val cppComment = javaClass.getAttributeComment(attrib)
+        if (cppComment != null) {
+            generateAttributeComment(cppComment, attrib, w)
+        } else {
+            // no doc string available, generate some minimal type info
+            val paramDocs = mutableMapOf<String, String>()
+            if (attrib.type.isArray) {
+                paramDocs["index"] = "Array index"
+            }
+            generateJavadoc(paramDocs, makeTypeDoc(JavaType(attrib.type), attrib.decorators), w)
         }
-        generateJavadoc(paramDocs, makeTypeDoc(javaType, attrib.decorators), w)
+
         w.append("""
             public$staticMod ${javaType.javaType} $methodName($arrayModPub) {$nullCheck
                 ${javaType.boxedReturn("_$methodName($addressCall$arrayCallMod)")};
@@ -596,7 +488,7 @@ class JniJavaGenerator : CodeGenerator() {
         """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
-    private fun generateSet(attrib: IdlAttribute, w: Writer) {
+    private fun generateSet(javaClass: JavaClass, attrib: IdlAttribute, w: Writer) {
         val javaType = JavaType(attrib.type)
         val methodName = "set${firstCharToUpper(attrib.name)}"
 
@@ -614,12 +506,18 @@ class JniJavaGenerator : CodeGenerator() {
         if (nativeSig.isNotEmpty()) { nativeSig += ", "}
         nativeSig += "${javaType.internalType} value"
 
-        val paramDocs = mutableMapOf<String, String>()
-        if (attrib.type.isArray) {
-            paramDocs["index"] = "Array index"
+        val cppComment = javaClass.getAttributeComment(attrib)
+        if (cppComment != null) {
+            generateAttributeComment(cppComment, attrib, w)
+        } else {
+            val paramDocs = mutableMapOf<String, String>()
+            if (attrib.type.isArray) {
+                paramDocs["index"] = "Array index"
+            }
+            paramDocs["value"] = makeTypeDoc(javaType, attrib.decorators)
+            generateJavadoc(paramDocs, "", w)
         }
-        paramDocs["value"] = makeTypeDoc(javaType, attrib.decorators)
-        generateJavadoc(paramDocs, "", w)
+
         w.append("""
             public$staticMod void $methodName($arrayModPub${javaType.javaType} value) {$nullCheck
                 _$methodName($addressCall$arrayCallMod, ${javaType.unbox("value", attrib.isNullable())});
@@ -658,7 +556,16 @@ class JniJavaGenerator : CodeGenerator() {
     }
 
     private fun IdlEnum.generate(javaClass: JavaClass) = javaClass.generateSource(createOutFileWriter(javaClass.path)) {
+        val comments = javaClass.comments as? CppEnumComments
         unprefixedValues.forEach { enumVal ->
+            comments?.enumValues?.get(enumVal)?.comment?.let {
+                val comment = DoxygenToJavadoc.makeJavadocString(it, null, null)
+                write(comment.prependIndent(4))
+                write("\n")
+                if (comment.contains("@deprecated")) {
+                    write("    @Deprecated\n")
+                }
+            }
             write("    public static final int $enumVal = _get$enumVal();\n")
         }
         write("\n")

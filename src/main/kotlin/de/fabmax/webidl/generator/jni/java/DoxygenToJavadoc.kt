@@ -38,6 +38,7 @@ object DoxygenToJavadoc {
                 .replace("\\note ", "<b>Note:</b> ")
                 .replace("\\note", "<b>Note:</b>")
                 .replace("\\return ", "@return ")
+                .replace("\\deprecated", "@deprecated ")
 
             if (doc.contains("@see ") || doc.contains("\\see ")) {
                 doc = processSee(doc, idlClass)
@@ -78,6 +79,7 @@ object DoxygenToJavadoc {
             .replace("<h1>", "%[h1]").replace("</h1>", "%[/h1]")
             .replace("<h2>", "%[h2]").replace("</h2>", "%[/h2]")
             .replace("<h3>", "%[h3]").replace("</h3>", "%[/h3]")
+            .replace("<br>", "%[br]")
 
         // replace html chars
         val htmlSafe = escaped.replace("&", "&amp;")
@@ -90,6 +92,7 @@ object DoxygenToJavadoc {
             .replace("%[h1]", "<h1>").replace("%[/h1]", "</h1>")
             .replace("%[h2]", "<h2>").replace("%[/h2]", "</h2>")
             .replace("%[h3]", "<h3>").replace("%[/h3]", "</h3>")
+            .replace("%[br]", "<br>")
     }
 
     private fun processParam(paramLine: String, idlFunction: IdlFunction?): Pair<Boolean, String> {
