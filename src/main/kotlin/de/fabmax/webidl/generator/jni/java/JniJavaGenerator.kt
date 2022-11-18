@@ -40,6 +40,15 @@ class JniJavaGenerator : CodeGenerator() {
 
     private val comments = mutableMapOf<String, CppComments>()
 
+    private var classesWithComments = 0
+    private var classesWithoutComments = 0
+    private var methodsWithComments = 0
+    private var methodsWithoutComments = 0
+    private var attributesWithComments = 0
+    private var attributesWithoutComments = 0
+    private var enumsWithComments = 0
+    private var enumsWithoutComments = 0
+
     init {
         outputDirectory = "./generated/java"
     }
@@ -58,6 +67,16 @@ class JniJavaGenerator : CodeGenerator() {
         for (pkg in model.collectPackages()) {
             model.generatePackage(pkg)
         }
+
+        println("Done generating JNI classes!")
+        println("  %4d classes, (%.1f %% with javadoc)".format(classesWithComments + classesWithoutComments,
+            classesWithComments * 100f / (classesWithComments + classesWithoutComments)))
+        println("  %4d methods, (%.1f %% with javadoc)".format(methodsWithComments + methodsWithoutComments,
+            methodsWithComments * 100f / (methodsWithComments + methodsWithoutComments)))
+        println("  %4d attributes, (%.1f %% with javadoc)".format(attributesWithComments + attributesWithoutComments,
+            attributesWithComments * 100f / (attributesWithComments + attributesWithoutComments)))
+        println("  %4d enum values, (%.1f %% with javadoc)".format(enumsWithComments + enumsWithoutComments,
+            enumsWithComments * 100f / (enumsWithComments + enumsWithoutComments)))
     }
 
     private fun parseCppComments() {
@@ -257,6 +276,12 @@ class JniJavaGenerator : CodeGenerator() {
     private fun IdlInterface.generate(javaClass: JavaClass) = javaClass.generateSource(createOutFileWriter(javaClass.path)) {
         val ctorFunctions = functions.filter { it.name == name }
 
+        if (javaClass.comments != null) {
+            classesWithComments++
+        } else {
+            classesWithoutComments++
+        }
+
         if (hasDecorator(IdlDecorator.STACK_ALLOCATABLE)) {
             generateSizeOf(this)
             append("    // Placed Constructors\n\n")
@@ -426,6 +451,7 @@ class JniJavaGenerator : CodeGenerator() {
     private fun generateFunctionComment(javaClass: JavaClass, func: IdlFunction, w: Writer) {
         javaClass.getMethodComment(func)?.let {
             // we got a doc comment string from parsed c++ header
+            methodsWithComments++
             val comment = DoxygenToJavadoc.makeJavadocString(it.comment ?: "", func.parentInterface, func)
             w.write(comment.prependIndent(4))
             w.write("\n")
@@ -435,6 +461,7 @@ class JniJavaGenerator : CodeGenerator() {
 
         } ?: run {
             // no doc string available, generate some minimal type info
+            methodsWithoutComments++
             val nativeToJavaParams = func.parameters.zip(func.parameters.map { JavaType(it.type) })
             val returnType = JavaType(func.returnType)
 
@@ -470,9 +497,11 @@ class JniJavaGenerator : CodeGenerator() {
 
         val cppComment = javaClass.getAttributeComment(attrib)
         if (cppComment != null) {
+            attributesWithComments++
             generateAttributeComment(cppComment, attrib, w)
         } else {
             // no doc string available, generate some minimal type info
+            attributesWithoutComments++
             val paramDocs = mutableMapOf<String, String>()
             if (attrib.type.isArray) {
                 paramDocs["index"] = "Array index"
@@ -559,13 +588,14 @@ class JniJavaGenerator : CodeGenerator() {
         val comments = javaClass.comments as? CppEnumComments
         unprefixedValues.forEach { enumVal ->
             comments?.enumValues?.get(enumVal)?.comment?.let {
+                enumsWithComments++
                 val comment = DoxygenToJavadoc.makeJavadocString(it, null, null)
                 write(comment.prependIndent(4))
                 write("\n")
                 if (comment.contains("@deprecated")) {
                     write("    @Deprecated\n")
                 }
-            }
+            } ?: run { enumsWithoutComments++ }
             write("    public static final int $enumVal = _get$enumVal();\n")
         }
         write("\n")

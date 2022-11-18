@@ -20,7 +20,7 @@ class WebIdlStream {
                     buffer.append("\n")
                 }
                 val appendLine = nextLine.getOrThrow()
-                buffer.append(appendLine.trim()).replace(whitespaceRegex, " ")
+                buffer.append(appendLine.substringBefore("//").trim()).replace(whitespaceRegex, " ")
                 contextLines.addLast(appendLine)
                 while (contextLines.size > 4) {
                     contextLines.removeFirst()
