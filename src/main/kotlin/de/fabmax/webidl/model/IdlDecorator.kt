@@ -9,10 +9,12 @@ data class IdlDecorator(val key: String, val value: String?) {
         const val CONST = "Const"
         const val JS_IMPLEMENTATION = "JSImplementation"
         const val NO_DELETE = "NoDelete"
+        const val PREFIX = "Prefix"
         const val REF = "Ref"
         const val VALUE = "Value"
 
         // non-standard decorators
+        const val NON_JS = "NonJs"
         const val NULLABLE = "Nullable"
         const val STACK_ALLOCATABLE = "StackAllocatable"
     }

@@ -27,10 +27,8 @@ abstract class CodeGenerator {
     fun createOutFile(path: String): OutputStream {
         val outPath = getOutFile(path)
         val dir = outPath.parentFile
-        if (!dir.exists()) {
-            if (!dir.mkdirs()) {
-                throw IOException("Failed creating output directory")
-            }
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw IOException("Failed creating output directory")
         }
         return FileOutputStream(outPath)
     }
@@ -40,7 +38,7 @@ abstract class CodeGenerator {
     }
 
     fun firstCharToLower(str: String): String {
-        return str[0].uppercaseChar() + str.substring(1)
+        return str[0].lowercaseChar() + str.substring(1)
     }
 }
 

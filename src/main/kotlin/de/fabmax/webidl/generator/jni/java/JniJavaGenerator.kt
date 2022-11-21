@@ -283,7 +283,6 @@ class JniJavaGenerator : CodeGenerator() {
         }
 
         if (hasDecorator(IdlDecorator.STACK_ALLOCATABLE)) {
-            generateSizeOf(this)
             append("    // Placed Constructors\n\n")
             ctorFunctions.forEach { ctor ->
                 generatePlacedConstructor(ctor, this)
@@ -327,14 +326,6 @@ class JniJavaGenerator : CodeGenerator() {
 
     private fun IdlAttribute.isNullable(): Boolean {
         return hasDecorator(IdlDecorator.NULLABLE)
-    }
-
-    private fun generateSizeOf(w: Writer) {
-        w.append("""
-            private static native int __sizeOf();
-            public static final int SIZEOF = __sizeOf();
-            public static final int ALIGNOF = 8;
-        """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
     private fun IdlInterface.generatePlacedConstructor(ctorFunc: IdlFunction, w: Writer) {

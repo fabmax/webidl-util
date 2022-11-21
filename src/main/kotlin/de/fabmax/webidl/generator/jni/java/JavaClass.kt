@@ -130,8 +130,17 @@ internal class JavaClass(val idlElement: IdlDecoratedElement, idlPkg: String, pa
 
         if (generatePointerWrapMethods) {
             w.append("""
+                private static native int __sizeOf();
+                public static final int SIZEOF = __sizeOf();
+                public static final int ALIGNOF = 8;
+                
                 public static $name wrapPointer(long address) {
                     return address != 0L ? new $name(address) : null;
+                }
+                
+                public static $name arrayGet(long baseAddress, int index) {
+                    if (baseAddress == 0L) throw new NullPointerException("baseAddress is 0");
+                    return wrapPointer(baseAddress + (long) SIZEOF * index);
                 }
                 
                 protected $name(long address) {

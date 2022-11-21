@@ -55,6 +55,12 @@ class JniNativeGenerator : CodeGenerator() {
     }
 
     private fun generateJniSupportBindings(w: Writer) {
+        w.nativeFunc {
+            returnType = "jint"
+            functionName = nativeFunName("", "NativeObject", "_sizeOfPointer")
+            isReceivingAddress = false
+            body = "return sizeof(void*);"
+        }
         w.append('\n').append("""
             // JniThreadManager
             JNIEXPORT jboolean JNICALL ${nativeFunName("", "JniThreadManager", "init")}(JNIEnv* env, jclass) {
@@ -91,6 +97,7 @@ class JniNativeGenerator : CodeGenerator() {
         w.write("\n// $name\n")
         // callback interfaces are only mapped with their default constructor and destructor
         val natType = getNativeType(model)
+        generateSizeOf(w)
         w.append("""
             JNIEXPORT jlong JNICALL ${nativeFunName(sourcePackage, name, name)}(JNIEnv* env, jobject obj) {
                 return (jlong) new $name(env, obj);
@@ -103,8 +110,8 @@ class JniNativeGenerator : CodeGenerator() {
 
     private fun IdlInterface.generate(w: Writer) {
         w.write("\n// $name\n")
+        generateSizeOf(w)
         if (hasDecorator(IdlDecorator.STACK_ALLOCATABLE)) {
-            generateSizeOf(w)
             val ctors = functions.filter { it.name == name }
             val isOverloaded = ctors.size > 1
             ctors.forEach { ctor ->

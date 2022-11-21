@@ -1,4 +1,4 @@
-package de.fabmax.webidl.generator.js
+package de.fabmax.webidl.generator.ktjs
 
 import de.fabmax.webidl.generator.CodeGenerator
 import de.fabmax.webidl.generator.indent
@@ -7,7 +7,7 @@ import java.io.File
 import java.io.Writer
 import java.util.*
 
-class JsInterfaceGenerator : CodeGenerator() {
+class KtJsInterfaceGenerator : CodeGenerator() {
 
     var packagePrefix = ""
 
@@ -25,24 +25,6 @@ class JsInterfaceGenerator : CodeGenerator() {
      * If true, all types (interface members and function parameters) are generated as nullable.
      */
     var allTypesNullable = false
-
-    /**
-     * List of interface attributes, which will be generated with nullable types. Expected format:
-     * "InterfaceName.attributeName"
-     */
-    val nullableAttributes = mutableSetOf<String>()
-
-    /**
-     * List of functions, which will be generated with nullable return types. Expected format:
-     * "InterfaceName.functionName"
-     */
-    val nullableReturnValues = mutableSetOf<String>()
-
-    /**
-     * List of function parameters, which will be generated with nullable types. Expected format:
-     * "InterfaceName.functionName" to "parameterName"
-     */
-    val nullableParameters = mutableSetOf<Pair<String, String>>()
 
     private var loaderClassName = ""
     private var moduleMemberName = ""
@@ -188,6 +170,15 @@ class JsInterfaceGenerator : CodeGenerator() {
         val superIf = getDecoratorValue("JSImplementation", "")
         w.write("external interface $name : $superIf {\n")
 
+        fun callbackType(cbParam: IdlFunctionParameter): String {
+            return if (cbParam.type.isComplexType) {
+                // emscripten / webidl binder passes callback parameter objects as naked pointers
+                "Int"
+            } else {
+                model.ktType(cbParam.type, cbParam.isNullable())
+            }
+        }
+
         // functions of callback interfaces are members, which have to be set
         functions.filter { it.name != name }.forEach { func ->
             val paramDocs = mutableMapOf<String, String>()
@@ -195,10 +186,9 @@ class JsInterfaceGenerator : CodeGenerator() {
             val returnDoc = if (func.returnType.isVoid) "" else makeTypeDoc(func.returnType, func.decorators)
             generateJavadoc(paramDocs, returnDoc, w, withAnnotations = false)
 
-            val funcName = "$name.${func.name}"
-            val argsStr = func.parameters.joinToString(", ") { "${it.name}: ${model.ktType(it.type, it.isNullable(funcName))}" }
+            val argsStr = func.parameters.joinToString(", ") { "${it.name}: ${callbackType(it)}" }
             val retType = if (func.returnType.typeName != "void") {
-                model.ktType(func.returnType, nullableReturnValues.contains(funcName))
+                model.ktType(func.returnType, func.hasDecorator(IdlDecorator.NULLABLE))
             } else {
                 "Unit"
             }
@@ -234,8 +224,16 @@ class JsInterfaceGenerator : CodeGenerator() {
                     /**
                      * ${makeTypeDoc(attr.type, attr.decorators)}
                      */
-                    var ${attr.name}: ${model.ktType(attr.type, attr.isNullable(this))}
                 """.trimIndent().prependIndent("    ")).append("\n")
+
+                if (attr.type.isArray) {
+                    val ktType = model.ktType(attr.type, attr.isNullable())
+                    w.append("    fun get_${attr.name}(index: Int): ${ktType}\n")
+                    w.append("    fun set_${attr.name}(index: Int, value: ${ktType})\n")
+                } else {
+                    w.append("    var ${attr.name}: ${model.ktType(attr.type, attr.isNullable())}\n")
+                }
+
             }
             if (attributes.isNotEmpty() && nonCtorFuns.isNotEmpty()) {
                 w.write("\n")
@@ -248,11 +246,10 @@ class JsInterfaceGenerator : CodeGenerator() {
                 generateJavadoc(paramDocs, returnDoc, w)
 
                 // function declaration
-                val funcName = "$name.${func.name}"
                 val isOverride = if (func.isOverride(this, model)) "override " else ""
-                val argsStr = func.parameters.joinToString(", ") { "${it.name}: ${model.ktType(it.type, it.isNullable(funcName))}" }
+                val argsStr = func.parameters.joinToString(", ") { "${it.name}: ${model.ktType(it.type, it.isNullable())}" }
                 val retType = if (func.returnType.typeName != "void") {
-                    ": ${model.ktType(func.returnType, nullableReturnValues.contains(funcName))}"
+                    ": ${model.ktType(func.returnType, func.hasDecorator(IdlDecorator.NULLABLE))}"
                 } else {
                     ""
                 }
@@ -263,6 +260,7 @@ class JsInterfaceGenerator : CodeGenerator() {
         }
         w.write("\n\n")
         generateExtensionConstructor(w)
+        generateExtensionPointerWrapper(w)
         if (!hasDecorator(IdlDecorator.NO_DELETE)) {
             generateExtensionDestructor(w)
         }
@@ -277,8 +275,7 @@ class JsInterfaceGenerator : CodeGenerator() {
             generateJavadoc(paramDocs, "", w, "")
 
             // extension constructor function
-            val funcName = "$name.${ctor.name}"
-            val argsStr = ctor.parameters.joinToString(", ", transform = { "${it.name}: ${model.ktType(it.type, it.isNullable(funcName))}" })
+            val argsStr = ctor.parameters.joinToString(", ", transform = { "${it.name}: ${model.ktType(it.type, it.isNullable())}" })
             val argNames = ctor.parameters.joinToString(", ", transform = { it.name })
             val argsStrInternal = "_module: dynamic" + if (argsStr.isEmpty()) "" else ", $argsStr"
             val argNamesInternal = moduleLocation + if (argNames.isEmpty()) "" else ", $argNames"
@@ -289,6 +286,15 @@ class JsInterfaceGenerator : CodeGenerator() {
                 }
             """.trimIndent()).append("\n\n")
         }
+    }
+
+    private fun IdlInterface.generateExtensionPointerWrapper(w: Writer) {
+        w.append("""
+            fun ${name}FromPointer(ptr: Int): $name {
+                fun _${name}_wrap(_module: dynamic, ptr: Int) = js("_module.wrapPointer(ptr, _module.${name})")
+                return _${name}_wrap($moduleLocation, ptr)
+            }
+        """.trimIndent()).append("\n\n")
     }
 
     private fun IdlInterface.generateExtensionDestructor(w: Writer) {
@@ -360,13 +366,14 @@ class JsInterfaceGenerator : CodeGenerator() {
         return false
     }
 
-    private fun IdlAttribute.isNullable(parentIf: IdlInterface): Boolean {
-        return nullableAttributes.contains("${parentIf.name}.$name")
+    private fun IdlFunctionParameter.isNullable(): Boolean {
+        return hasDecorator(IdlDecorator.NULLABLE)
     }
 
-    private fun IdlFunctionParameter.isNullable(funcName: String): Boolean {
-        return nullableParameters.contains(funcName to name)
+    private fun IdlAttribute.isNullable(): Boolean {
+        return hasDecorator(IdlDecorator.NULLABLE)
     }
+
 
     private fun IdlEnum.generate(w: Writer) {
         if (values.isNotEmpty()) {
@@ -425,10 +432,6 @@ class JsInterfaceGenerator : CodeGenerator() {
             if (!isPrimitive && (isNullable || allTypesNullable)) {
                 typeStr += "?"
             }
-            // array access is not really supported by emscripten/WebIDL
-//            if (type.isArray) {
-//                typeStr = "Array<$typeStr>"
-//            }
             typeStr
         }
     }

@@ -176,7 +176,7 @@ object CppCommentParser {
 
         private fun enterEnum(enumName: String) {
             val prefixedName = (currentClass?.className ?: "") + enumName
-            val cppEnum = CppEnumComments(namespacePath.joinToString("::"), prefixedName, latestCommentString)
+            val cppEnum = CppEnumComments(namespacePath.joinToString("::"), prefixedName, latestCommentString ?: currentClass?.comment)
             enums += cppEnum
             lastCommentElement = cppEnum
         }

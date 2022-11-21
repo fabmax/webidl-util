@@ -52,7 +52,11 @@ class WebIdlParser(
     }
 
     companion object {
-        fun parseDirectory(path: String, modelName: String? = null): IdlModel {
+        fun parseDirectory(
+            path: String,
+            modelName: String? = null,
+            explodeOptionalFunctionParams: Boolean = true
+        ): IdlModel {
             val directory = File(path)
             if (!directory.exists() || !directory.isDirectory) {
                 throw IOException("Given path is not a directory")
@@ -60,7 +64,7 @@ class WebIdlParser(
             val name = modelName ?: directory.name
 
             return runBlocking {
-                val parser = WebIdlParser(name)
+                val parser = WebIdlParser(name, explodeOptionalFunctionParams)
                 directory.walk().filter { it.name.endsWith(".idl", true) }.forEach { idlFile ->
                     println("Parsing $idlFile")
                     FileInputStream(idlFile).use {
@@ -71,16 +75,24 @@ class WebIdlParser(
             }
         }
 
-        fun parseSingleFile(path: String, modelName: String? = null): IdlModel {
+        fun parseSingleFile(
+            path: String,
+            modelName: String? = null,
+            explodeOptionalFunctionParams: Boolean = true
+        ): IdlModel {
             return FileInputStream(path).use {
                 val name = modelName ?: File(path).name.replace(".idl", "", true)
-                parseFromInputStream(it, name)
+                parseFromInputStream(it, name, explodeOptionalFunctionParams)
             }
         }
 
-        fun parseFromInputStream(inStream: InputStream, modelName: String = "webidl"): IdlModel {
+        fun parseFromInputStream(
+            inStream: InputStream,
+            modelName: String = "webidl",
+            explodeOptionalFunctionParams: Boolean = true
+        ): IdlModel {
             return runBlocking {
-                val parser = WebIdlParser(modelName)
+                val parser = WebIdlParser(modelName, explodeOptionalFunctionParams)
                 parser.parseStream(inStream, modelName)
                 parser.finish()
             }

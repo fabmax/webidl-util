@@ -15,6 +15,15 @@ internal fun JniJavaGenerator.generateNativeObject(model: IdlModel): JavaClass {
     }.apply {
         generateSource(createOutFileWriter(fileName)) {
             append("""
+                private static native int __sizeOfPointer();
+                public static final int SIZEOF_POINTER = __sizeOfPointer();
+                public static final int SIZEOF_BYTE = 1;
+                public static final int SIZEOF_SHORT = 2;
+                public static final int SIZEOF_INT = 4;
+                public static final int SIZEOF_LONG = 8;
+                public static final int SIZEOF_FLOAT = 4;
+                public static final int SIZEOF_DOUBLE = 8;
+                
                 protected long address = 0L;
                 protected boolean isExternallyAllocated = false;
                 

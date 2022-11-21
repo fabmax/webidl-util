@@ -1,6 +1,6 @@
 import de.fabmax.webidl.generator.jni.java.JniJavaGenerator
 import de.fabmax.webidl.generator.jni.nat.JniNativeGenerator
-import de.fabmax.webidl.generator.js.JsInterfaceGenerator
+import de.fabmax.webidl.generator.ktjs.KtJsInterfaceGenerator
 import de.fabmax.webidl.model.IdlDecorator
 import de.fabmax.webidl.parser.ParserException
 import de.fabmax.webidl.parser.WebIdlParser
@@ -53,7 +53,7 @@ class ParserTest {
         val inStream = ParserTest::class.java.classLoader.getResourceAsStream("test.idl")!!
         val model = WebIdlParser.parseFromInputStream(inStream)
 
-        JsInterfaceGenerator().apply {
+        KtJsInterfaceGenerator().apply {
             outputDirectory = "test_output/js"
         }.generate(model)
     }
