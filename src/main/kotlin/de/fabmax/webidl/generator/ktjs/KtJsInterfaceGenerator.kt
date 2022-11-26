@@ -277,23 +277,16 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             // extension constructor function
             val argsStr = ctor.parameters.joinToString(", ", transform = { "${it.name}: ${model.ktType(it.type, it.isNullable())}" })
             val argNames = ctor.parameters.joinToString(", ", transform = { it.name })
-            val argsStrInternal = "_module: dynamic" + if (argsStr.isEmpty()) "" else ", $argsStr"
-            val argNamesInternal = moduleLocation + if (argNames.isEmpty()) "" else ", $argNames"
+            val argsWithModule = (if (argsStr.isEmpty()) "" else "$argsStr, ") + "_module: dynamic = $moduleLocation"
             w.append("""
-                fun $name($argsStr): $name {
-                    fun _$name($argsStrInternal) = js("new _module.$name($argNames)")
-                    return _$name($argNamesInternal)
-                }
+                fun $name($argsWithModule): $name = js("new _module.$name($argNames)")
             """.trimIndent()).append("\n\n")
         }
     }
 
     private fun IdlInterface.generateExtensionPointerWrapper(w: Writer) {
         w.append("""
-            fun ${name}FromPointer(ptr: Int): $name {
-                fun _${name}_wrap(_module: dynamic, ptr: Int) = js("_module.wrapPointer(ptr, _module.${name})")
-                return _${name}_wrap($moduleLocation, ptr)
-            }
+            fun ${name}FromPointer(ptr: Int, _module: dynamic = $moduleLocation): $name = js("_module.wrapPointer(ptr, _module.${name})")
         """.trimIndent()).append("\n\n")
     }
 
