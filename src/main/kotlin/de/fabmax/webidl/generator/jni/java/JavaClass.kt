@@ -1,60 +1,34 @@
 package de.fabmax.webidl.generator.jni.java
 
 import de.fabmax.webidl.generator.prependIndent
-import de.fabmax.webidl.model.*
+import de.fabmax.webidl.model.IdlAttribute
+import de.fabmax.webidl.model.IdlFunction
+import de.fabmax.webidl.model.IdlInterface
 import de.fabmax.webidl.parser.CppAttributeComment
 import de.fabmax.webidl.parser.CppClassComments
-import de.fabmax.webidl.parser.CppComments
 import de.fabmax.webidl.parser.CppMethodComment
-import java.io.File
 import java.io.Writer
 import java.util.*
 import kotlin.math.abs
 
-internal class JavaClass(val idlElement: IdlDecoratedElement, idlPkg: String, packagePrefix: String) {
-    val name: String = idlElement.name
-    val isEnum: Boolean = idlElement is IdlEnum
-    val javaPkg: String
-    val fqn: String
-    val fileName = "$name.java"
-
-    // only use idlPkg instead of prefixed / full java package for path construction
-    // this way the output directory can point into a package within a project and does not need to target the
-    // top-level source directory of a project
-    val path = if (idlPkg.isEmpty()) fileName else File(idlPkg.replace('.', '/'), fileName).path
-
-    var visibility = "public"
-    var modifier = ""
+internal class JavaClass(idlElement: IdlInterface, idlPkg: String, packagePrefix: String) :
+    JavaType(idlElement, idlPkg, packagePrefix)
+{
     var protectedDefaultContructor = true
     var generatePointerWrapMethods = true
-    var staticCode = ""
 
     var superClass: JavaClass? = null
-    val imports = mutableListOf<JavaClass>()
+    val imports = mutableListOf<JavaType>()
     val importFqns = TreeSet<String>()
 
-    var comments: CppComments? = null
-
-    init {
-        javaPkg = when {
-            packagePrefix.isEmpty() -> idlPkg
-            idlPkg.isEmpty() -> packagePrefix
-            else -> "$packagePrefix.$idlPkg"
-        }
-        fqn = if (javaPkg.isEmpty()) name else "$javaPkg.$name"
-    }
+    var comments: CppClassComments? = null
 
     fun getMethodComment(method: IdlFunction): CppMethodComment? {
-        val comments = this.comments as? CppClassComments ?: return null
+        val comments = this.comments ?: return null
         val funcs = comments.methods[method.name]?.filter { it.comment != null } ?: return null
 
         val bestFunc = funcs.find { it.matchesParameters(method) }
         return if (bestFunc == null && funcs.isNotEmpty()) {
-//            println("$name.${method.name}: warn no method with matching param names found, choosing any")
-//            println("    idl parameters: ${method.parameters.map { "${it.name}: ${it.type.typeName}" }}")
-//            println("    cpp candidates:")
-//            funcs.forEach { f -> println("                    ${f.parameters.map { "${it.name}: ${it.type}" }}") }
-
             funcs.minBy { abs(it.parameters.size - method.parameters.size) }
         } else {
             bestFunc
@@ -76,14 +50,8 @@ internal class JavaClass(val idlElement: IdlDecoratedElement, idlPkg: String, pa
     }
 
     fun getAttributeComment(attribute: IdlAttribute): CppAttributeComment? {
-        val comments = this.comments as? CppClassComments ?: return null
+        val comments = this.comments ?: return null
         return comments.attributes[attribute.name]
-    }
-
-    fun generatePackage(w: Writer) {
-        if (javaPkg.isNotEmpty()) {
-            w.write("package $javaPkg;\n\n")
-        }
     }
 
     fun generateImports(w: Writer) {
@@ -97,14 +65,7 @@ internal class JavaClass(val idlElement: IdlDecoratedElement, idlPkg: String, pa
     }
 
     fun generateClassStart(w: Writer) {
-        if (comments?.comment?.isNotBlank() == true) {
-            val comment = DoxygenToJavadoc.makeJavadocString(comments!!.comment!!, idlElement as? IdlInterface, null)
-            w.write(comment)
-            w.write("\n")
-            if (comment.contains("@deprecated")) {
-                w.write("@Deprecated\n")
-            }
-        }
+        generateTypeComment(w, comments)
 
         w.write("$visibility ")
         if (modifier.isNotEmpty()) {

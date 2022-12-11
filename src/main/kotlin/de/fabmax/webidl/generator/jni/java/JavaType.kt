@@ -1,48 +1,49 @@
 package de.fabmax.webidl.generator.jni.java
 
-import de.fabmax.webidl.model.IdlType
+import de.fabmax.webidl.model.IdlDecoratedElement
+import de.fabmax.webidl.model.IdlInterface
+import de.fabmax.webidl.parser.CppComments
+import java.io.File
+import java.io.Writer
 
-internal class JavaType(val idlType: IdlType, val isIdlEnum: Boolean) {
-    val internalType: String
-    val javaType: String
+internal abstract class JavaType(val idlElement: IdlDecoratedElement, idlPkg: String, packagePrefix: String) {
+    val name: String = idlElement.name
+    val javaPkg: String
+    val fqn: String
+    val fileName = "$name.java"
 
-    private val requiresMarshalling: Boolean
-        get() = internalType != javaType
+    // only use idlPkg instead of prefixed / full java package for path construction
+    // this way the output directory can point into a package within a project and does not need to target the
+    // top-level source directory of a project
+    val path = if (idlPkg.isEmpty()) fileName else File(idlPkg.replace('.', '/'), fileName).path
+
+    var visibility = "public"
+    var modifier = ""
+    var staticCode = ""
 
     init {
-        when {
-            idlType.isPrimitive -> {
-                internalType = JniJavaGenerator.idlPrimitiveTypeMap[idlType.typeName] ?: throw IllegalStateException("Unknown idl type: ${idlType.typeName}")
-                javaType = internalType
-            }
-            idlType.isAnyOrVoidPtr -> {
-                internalType = "long"
-                javaType = JniJavaGenerator.NATIVE_OBJECT_NAME
-            }
-            isIdlEnum -> {
-                internalType = "int"
-                javaType = "int"
-            }
-            else -> {
-                internalType = "long"
-                javaType = idlType.typeName
-            }
+        javaPkg = when {
+            packagePrefix.isEmpty() -> idlPkg
+            idlPkg.isEmpty() -> packagePrefix
+            else -> "$packagePrefix.$idlPkg"
+        }
+        fqn = if (javaPkg.isEmpty()) name else "$javaPkg.$name"
+    }
+
+    fun generatePackage(w: Writer) {
+        if (javaPkg.isNotEmpty()) {
+            w.write("package $javaPkg;\n\n")
         }
     }
 
-    fun boxedReturn(value: String): String {
-        return when {
-            idlType.isVoid -> value
-            requiresMarshalling -> "return $javaType.wrapPointer($value)"
-            else -> "return $value"
-        }
-    }
-
-    fun unbox(value: String, isNullable: Boolean = false): String {
-        return when {
-            isNullable && requiresMarshalling -> "($value != null ? $value.getAddress() : 0L)"
-            requiresMarshalling -> "$value.getAddress()"
-            else -> value
+    fun generateTypeComment(w: Writer, comments: CppComments?) {
+        if (comments?.comment?.isNotBlank() == true) {
+            val comment = DoxygenToJavadoc.makeJavadocString(comments.comment!!, idlElement as? IdlInterface, null)
+            w.write(comment)
+            w.write("\n")
+            if (comment.contains("@deprecated")) {
+                w.write("@Deprecated\n")
+            }
         }
     }
 }

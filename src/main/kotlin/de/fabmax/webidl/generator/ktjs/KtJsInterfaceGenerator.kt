@@ -339,20 +339,21 @@ class KtJsInterfaceGenerator : CodeGenerator() {
     private fun IdlFunction.isOverride(parentIf: IdlInterface, model: IdlModel): Boolean {
         for (superIf in parentIf.superInterfaces) {
             val sif = model.interfaces.find { it.name == superIf }
-            if (sif != null && sif.hasFunction(name, model)) {
+            if (sif != null && sif.hasFunction(name, parameters, model)) {
                 return true
             }
         }
         return false
     }
 
-    private fun IdlInterface.hasFunction(funName: String, model: IdlModel): Boolean {
-        if (functions.any { it.name == funName }) {
+    private fun IdlInterface.hasFunction(funName: String, parameters: List<IdlFunctionParameter>, model: IdlModel): Boolean {
+        val func = functionsByName[funName]
+        if (func != null && func.parameters == parameters) {
             return true
         }
         for (superIf in superInterfaces) {
             val sif = model.interfaces.find { it.name == superIf }
-            if (sif != null && sif.hasFunction(funName, model)) {
+            if (sif != null && sif.hasFunction(funName, parameters, model)) {
                 return true
             }
         }

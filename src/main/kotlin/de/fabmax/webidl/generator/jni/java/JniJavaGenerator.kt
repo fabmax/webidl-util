@@ -35,7 +35,7 @@ class JniJavaGenerator : CodeGenerator() {
     val parseCommentsFromDirectories = mutableListOf<String>()
 
     private lateinit var nativeObject: JavaClass
-    private val typeMap = mutableMapOf<String, JavaClass>()
+    private val typeMap = mutableMapOf<String, JavaType>()
     private lateinit var model: IdlModel
 
     private val comments = mutableMapOf<String, CppComments>()
@@ -112,9 +112,7 @@ class JniJavaGenerator : CodeGenerator() {
                 }
             }
             for (idlEn in model.getEnumsByPackage(idlPkg)) {
-                typeMap[idlEn.name] = JavaClass(idlEn, idlPkg, packagePrefix).apply {
-                    protectedDefaultContructor = false
-                    generatePointerWrapMethods = false
+                typeMap[idlEn.name] = JavaEnumClass(idlEn, idlPkg, packagePrefix).apply {
                     staticCode = onClassLoad
                     comments = this@JniJavaGenerator.comments[idlEn.name] as? CppEnumComments
                 }
@@ -151,13 +149,14 @@ class JniJavaGenerator : CodeGenerator() {
                 }
             }
 
-            val javaClass = typeMap[idlIf.name] ?: throw IllegalStateException("Unknown idl type: ${idlIf.name}")
+            val javaType = typeMap[idlIf.name] ?: throw IllegalStateException("Unknown idl type: ${idlIf.name}")
+            val javaClass = javaType as? JavaClass ?: throw IllegalStateException("Type is not a class: ${idlIf.name}")
 
             when {
                 idlIf.isCallback() -> {
                     // callback classes implement the type specified by JSImplementation decorator
                     val superType = idlIf.getDecoratorValue("JSImplementation", "")
-                    javaClass.superClass = typeMap[superType] ?: throw IllegalStateException("Unknown JSImplementation type: $superType")
+                    javaClass.superClass = (typeMap[superType] as? JavaClass) ?: throw IllegalStateException("Unknown JSImplementation type: $superType")
                     if (idlIf.superInterfaces.isNotEmpty()) {
                         System.err.println("warning: ${idlIf.name} is callback implementation of $superType and additionally implements ${idlIf.superInterfaces}")
                         System.err.println("warning: multiple super interfaces are not supported!")
@@ -172,7 +171,7 @@ class JniJavaGenerator : CodeGenerator() {
                         System.err.println("warning: ${idlIf.name} implements ${idlIf.superInterfaces}")
                         System.err.println("warning: multiple super interfaces are not supported!")
                     }
-                    javaClass.superClass = typeMap[idlIf.superInterfaces[0]] ?: throw IllegalStateException("Unknown idl type: ${idlIf.superInterfaces[0]}")
+                    javaClass.superClass = (typeMap[idlIf.superInterfaces[0]] as? JavaClass) ?: throw IllegalStateException("Unknown idl type: ${idlIf.superInterfaces[0]}")
                 }
             }
 
@@ -192,7 +191,7 @@ class JniJavaGenerator : CodeGenerator() {
 
     private fun IdlModel.generatePackage(idlPkg: String) {
         getInterfacesByPackage(idlPkg).forEach { idlIf ->
-            val javaClass = typeMap[idlIf.name] ?: throw IllegalStateException("Unknown idl type: $name")
+            val javaClass = typeMap[idlIf.name] as? JavaClass ?: throw IllegalStateException("Unknown idl type: $name")
             if (idlIf.isCallback()) {
                 // generate callback class
                 idlIf.generateCallback(javaClass)
@@ -202,7 +201,7 @@ class JniJavaGenerator : CodeGenerator() {
             }
         }
         getEnumsByPackage(idlPkg).forEach { idlEn ->
-            val javaClass = typeMap[idlEn.name] ?: throw IllegalStateException("Unknown idl type: $name")
+            val javaClass = typeMap[idlEn.name] as? JavaEnumClass ?: throw IllegalStateException("Unknown idl type: $name")
             idlEn.generate(javaClass)
         }
     }
@@ -229,10 +228,10 @@ class JniJavaGenerator : CodeGenerator() {
                 val internalParams = nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
                 val params = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
                 val callParams = nativeToJavaParams.joinToString { (nat, java) ->
-                    if (nat.type.isPrimitive || java.isIdlEnum) {
-                        nat.name
-                    } else {
-                        "${java.javaType}.wrapPointer(${nat.name})"
+                    when {
+                        nat.type.isPrimitive -> nat.name
+                        java.isIdlEnum -> "${java.javaType}.forValue(${nat.name})"
+                        else -> "${java.javaType}.wrapPointer(${nat.name})"
                     }
                 }
 
@@ -546,15 +545,15 @@ class JniJavaGenerator : CodeGenerator() {
         """.trimIndent().prependIndent(4)).append("\n\n")
     }
 
-    private fun makeTypeDoc(javaType: JavaType, decorators: List<IdlDecorator> = emptyList()): String {
+    private fun makeTypeDoc(javaTypeMapping: JavaTypeMapping, decorators: List<IdlDecorator> = emptyList()): String {
         val decoString = when {
-            javaType.isIdlEnum -> " [enum]"
+            javaTypeMapping.isIdlEnum -> " [enum]"
             decorators.isNotEmpty() -> " $decorators"
             else -> ""
         }
         val typeString = when {
-            javaType.idlType.isComplexType -> "WebIDL type: {@link ${javaType.idlType.typeName}}"
-            else -> "WebIDL type: ${javaType.idlType.typeName}"
+            javaTypeMapping.idlType.isComplexType -> "WebIDL type: {@link ${javaTypeMapping.idlType.typeName}}"
+            else -> "WebIDL type: ${javaTypeMapping.idlType.typeName}"
         }
         return "$typeString$decoString"
     }
@@ -575,27 +574,12 @@ class JniJavaGenerator : CodeGenerator() {
         }
     }
 
-    private fun IdlEnum.generate(javaClass: JavaClass) = javaClass.generateSource(createOutFileWriter(javaClass.path)) {
-        val comments = javaClass.comments as? CppEnumComments
-        unprefixedValues.forEach { enumVal ->
-            comments?.enumValues?.get(enumVal)?.comment?.let {
-                enumsWithComments++
-                val comment = DoxygenToJavadoc.makeJavadocString(it, null, null)
-                write(comment.prependIndent(4))
-                write("\n")
-                if (comment.contains("@deprecated")) {
-                    write("    @Deprecated\n")
-                }
-            } ?: run { enumsWithoutComments++ }
-            write("    public static final int $enumVal = _get$enumVal();\n")
-        }
-        write("\n")
-        unprefixedValues.forEach { enumVal ->
-            write("    private static native int _get$enumVal();\n")
-        }
+    private fun IdlEnum.generate(javaEnum: JavaEnumClass) {
+        enumsWithComments += unprefixedValues.count { javaEnum.comments?.enumValues?.get(it)?.comment != null }
+        javaEnum.generateSource(createOutFileWriter(javaEnum.path))
     }
 
-    private fun JavaType(idlType: IdlType) = JavaType(idlType, typeMap[idlType.typeName]?.isEnum ?: false)
+    private fun JavaType(idlType: IdlType) = JavaTypeMapping(idlType, typeMap[idlType.typeName] is JavaEnumClass)
 
     companion object {
         const val NATIVE_OBJECT_NAME = "NativeObject"
