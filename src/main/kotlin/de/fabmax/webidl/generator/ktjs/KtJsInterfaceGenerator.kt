@@ -148,18 +148,18 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             if (ktPkg.isNotEmpty()) {
                 w.writeHeader()
                 w.append("""
-                    @file:Suppress("UnsafeCastFromDynamic", "ClassName", "FunctionName", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "unused")
+                    @file:Suppress("UnsafeCastFromDynamic", "ClassName", "FunctionName", "UNUSED_PARAMETER", "unused")
 
                     package $ktPkg
                 """.trimIndent()).append("\n\n")
-                getInterfacesByPackage(pkg).forEach {
+                getInterfacesByPackage(pkg).filter { it.matchesPlatform(platform) }.forEach {
                     if (it.hasDecorator(IdlDecorator.JS_IMPLEMENTATION)) {
                         it.generateCallback(this, w)
                     } else {
                         it.generate(this, w)
                     }
                 }
-                getEnumsByPackage(pkg).forEach {
+                getEnumsByPackage(pkg).filter { it.matchesPlatform(platform) }.forEach {
                     it.generate(w)
                 }
             }
@@ -205,7 +205,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             w.write(" : ${superInterfaces.joinToString(", ")}")
         }
 
-        val nonCtorFuns = functions.filter { it.name != name }
+        val nonCtorFuns = platformFunctions.filter { it.name != name }
         if (nonCtorFuns.isNotEmpty() || attributes.isNotEmpty()) {
             w.write(" {\n")
 
@@ -219,7 +219,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                 """.trimIndent().prependIndent("    ")).append("\n\n")
             }
 
-            attributes.forEach { attr ->
+            platformAttributes.forEach { attr ->
                 w.append("""
                     /**
                      * ${makeTypeDoc(attr.type, attr.decorators)}
@@ -268,7 +268,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
     }
 
     private fun IdlInterface.generateExtensionConstructor(w: Writer) {
-        functions.filter { it.name == name }.forEach { ctor ->
+        platformFunctions.filter { it.name == name }.forEach { ctor ->
             // basic javadoc with some extended type info
             val paramDocs = mutableMapOf<String, String>()
             ctor.parameters.forEach { param -> paramDocs[param.name] = makeTypeDoc(param.type, param.decorators) }
@@ -299,7 +299,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
     }
 
     private fun IdlInterface.generateExtensionAttributes(w: Writer) {
-        val gets = functions.filter { get ->
+        val gets = platformFunctions.filter { get ->
             get.name.startsWith("get") && get.parameters.isEmpty() && functions.none {
                 it.name == get.name.replace("get", "set")
             }
@@ -315,7 +315,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             w.append('\n')
         }
 
-        val getSets = functions.filter { get ->
+        val getSets = platformFunctions.filter { get ->
             get.name.startsWith("get") && get.parameters.isEmpty() && functions.any {
                 it.name == get.name.replace("get", "set")
                         && it.parameters.size == 1

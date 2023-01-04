@@ -42,14 +42,14 @@ class JniNativeGenerator : CodeGenerator() {
         generateJniSupportBindings(w)
 
         collectPackages().forEach { pkg ->
-            getInterfacesByPackage(pkg).forEach {
+            getInterfacesByPackage(pkg).filter { it.matchesPlatform(platform) }.forEach {
                 if (it.hasDecorator(IdlDecorator.JS_IMPLEMENTATION)) {
                     it.generateCallbackInterface(w)
                 } else {
                     it.generate(w)
                 }
             }
-            getEnumsByPackage(pkg).forEach { it.generate(w) }
+            getEnumsByPackage(pkg).filter { it.matchesPlatform(platform) }.forEach { it.generate(w) }
         }
         w.write("\n} // /extern \"C\"\n")
     }
@@ -112,14 +112,14 @@ class JniNativeGenerator : CodeGenerator() {
         w.write("\n// $name\n")
         generateSizeOf(w)
         if (hasDecorator(IdlDecorator.STACK_ALLOCATABLE)) {
-            val ctors = functions.filter { it.name == name }
+            val ctors = platformFunctions.filter { it.name == name }
             val isOverloaded = ctors.size > 1
             ctors.forEach { ctor ->
                 generatePlacedCtor(ctor, isOverloaded, w)
             }
         }
-        functions.forEach { func ->
-            val isOverloaded = functions.filter { it.name == func.name }.count() > 1
+        platformFunctions.forEach { func ->
+            val isOverloaded = platformFunctions.filter { it.name == func.name }.count() > 1
             if (func.name == name) {
                 generateCtor(func, isOverloaded, w)
             } else {
@@ -129,7 +129,7 @@ class JniNativeGenerator : CodeGenerator() {
         if (!hasDecorator(IdlDecorator.NO_DELETE)) {
             generateDtor(w)
         }
-        attributes.forEach {
+        platformAttributes.forEach {
             generateGet(it, w)
             if (!it.isReadonly) {
                 generateSet(it, w)

@@ -14,8 +14,8 @@ data class IdlDecorator(val key: String, val value: String?) {
         const val VALUE = "Value"
 
         // non-standard decorators
-        const val NON_JS = "NonJs"
         const val NULLABLE = "Nullable"
         const val STACK_ALLOCATABLE = "StackAllocatable"
+        const val PLATFORMS = "Platforms"
     }
 }

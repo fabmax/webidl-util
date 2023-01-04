@@ -102,7 +102,7 @@ class JniJavaGenerator : CodeGenerator() {
 
         // 1st pass collect all interface/class and enum types
         for (idlPkg in model.collectPackages()) {
-            for (idlIf in model.getInterfacesByPackage(idlPkg)) {
+            for (idlIf in model.getInterfacesByPackage(idlPkg).filter { it.matchesPlatform(platform) }) {
                 typeMap[idlIf.name] = JavaClass(idlIf, idlPkg, packagePrefix).apply {
                     protectedDefaultContructor = !idlIf.hasDefaultConstructor() && !idlIf.isCallback()
                     generatePointerWrapMethods = true
@@ -111,7 +111,7 @@ class JniJavaGenerator : CodeGenerator() {
                     // is the super class of all IdlInterfaces
                 }
             }
-            for (idlEn in model.getEnumsByPackage(idlPkg)) {
+            for (idlEn in model.getEnumsByPackage(idlPkg).filter { it.matchesPlatform(platform) }) {
                 typeMap[idlEn.name] = JavaEnumClass(idlEn, idlPkg, packagePrefix).apply {
                     staticCode = onClassLoad
                     comments = this@JniJavaGenerator.comments[idlEn.name] as? CppEnumComments
@@ -120,14 +120,14 @@ class JniJavaGenerator : CodeGenerator() {
         }
 
         // 2nd pass collect imports and set super classes
-        for (idlIf in model.interfaces) {
+        for (idlIf in model.platformInterfaces) {
             val imports = mutableSetOf<String>()
 
             idlIf.superInterfaces.forEach { imports += it }
             if (idlIf.superInterfaces.isEmpty() && !idlIf.isCallback()) {
                 imports += nativeObject.name
             }
-            idlIf.functions.forEach { func ->
+            idlIf.platformFunctions.forEach { func ->
                 if (func.returnType.isComplexType) {
                     imports += func.returnType.typeName
                 } else if (func.returnType.isAnyOrVoidPtr) {
@@ -141,7 +141,7 @@ class JniJavaGenerator : CodeGenerator() {
                     }
                 }
             }
-            idlIf.attributes.forEach { attrib ->
+            idlIf.platformAttributes.forEach { attrib ->
                 if (attrib.type.isComplexType) {
                     imports += attrib.type.typeName
                 } else if (attrib.type.isAnyOrVoidPtr) {
@@ -186,11 +186,11 @@ class JniJavaGenerator : CodeGenerator() {
     }
 
     private fun IdlInterface.hasDefaultConstructor(): Boolean {
-        return functions.any { it.name == name && it.parameters.isEmpty() }
+        return platformFunctions.any { it.name == name && it.parameters.isEmpty() }
     }
 
     private fun IdlModel.generatePackage(idlPkg: String) {
-        getInterfacesByPackage(idlPkg).forEach { idlIf ->
+        getInterfacesByPackage(idlPkg).filter { it.matchesPlatform(platform) }.forEach { idlIf ->
             val javaClass = typeMap[idlIf.name] as? JavaClass ?: throw IllegalStateException("Unknown idl type: $name")
             if (idlIf.isCallback()) {
                 // generate callback class
@@ -200,7 +200,7 @@ class JniJavaGenerator : CodeGenerator() {
                 idlIf.generate(javaClass)
             }
         }
-        getEnumsByPackage(idlPkg).forEach { idlEn ->
+        getEnumsByPackage(idlPkg).filter { it.matchesPlatform(platform) }.forEach { idlEn ->
             val javaClass = typeMap[idlEn.name] as? JavaEnumClass ?: throw IllegalStateException("Unknown idl type: $name")
             idlEn.generate(javaClass)
         }
@@ -217,7 +217,7 @@ class JniJavaGenerator : CodeGenerator() {
         """.trimIndent().prependIndent(4)).append("\n\n")
         generateDestructor(this)
 
-        val nonCtorFunctions = functions.filter { it.name != name }
+        val nonCtorFunctions = platformFunctions.filter { it.name != name }
         if (nonCtorFunctions.isNotEmpty()) {
             append("    // Functions\n\n")
             nonCtorFunctions.forEach { func ->
@@ -273,7 +273,7 @@ class JniJavaGenerator : CodeGenerator() {
     }
 
     private fun IdlInterface.generate(javaClass: JavaClass) = javaClass.generateSource(createOutFileWriter(javaClass.path)) {
-        val ctorFunctions = functions.filter { it.name == name }
+        val ctorFunctions = platformFunctions.filter { it.name == name }
 
         if (javaClass.comments != null) {
             classesWithComments++
@@ -300,9 +300,9 @@ class JniJavaGenerator : CodeGenerator() {
             generateDestructor(this)
         }
 
-        if (attributes.isNotEmpty()) {
+        if (platformAttributes.isNotEmpty()) {
             append("    // Attributes\n\n")
-            attributes.forEach { attrib ->
+            platformAttributes.forEach { attrib ->
                 generateGet(javaClass, attrib, this)
                 if (!attrib.isReadonly) {
                     generateSet(javaClass, attrib, this)
@@ -310,7 +310,7 @@ class JniJavaGenerator : CodeGenerator() {
             }
         }
 
-        val nonCtorFunctions = functions.filter { it.name != name }
+        val nonCtorFunctions = platformFunctions.filter { it.name != name }
         if (nonCtorFunctions.isNotEmpty()) {
             append("    // Functions\n\n")
             nonCtorFunctions.forEach { func ->
