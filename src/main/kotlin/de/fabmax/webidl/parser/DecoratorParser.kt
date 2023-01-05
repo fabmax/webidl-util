@@ -12,10 +12,7 @@ class DecoratorParser(parserState: WebIdlParser.ParserState) : ElementParser(par
             val tok = popUntilPattern("[,\\]]") ?: parserException("Failed parsing decorator list")
             val splitIdx = tok.first.indexOf('=')
             val decorator = if (splitIdx > 0) {
-                var value = tok.first.substring(splitIdx+1).trim()
-                if (value.startsWith("\"") && value.endsWith("\"")) {
-                    value = value.substring(1, value.length - 1)
-                }
+                val value = tok.first.substring(splitIdx+1).trim().removeSurrounding("\"")
                 IdlDecorator(tok.first.substring(0 until splitIdx).trim(), value)
             } else {
                 IdlDecorator(tok.first, null)
