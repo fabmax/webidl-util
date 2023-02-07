@@ -33,16 +33,7 @@ internal class JavaEnumClass(idlElement: IdlEnum, idlPkg: String, packagePrefix:
                 }
             }
             val sep = if (i == idlElement.unprefixedValues.lastIndex) ";" else ","
-            w.write("    $enumVal(_get$enumVal())${sep}\n")
-        }
-
-        // static lib loader
-        if (staticCode.isNotEmpty()) {
-            w.write("\n    static {\n")
-            staticCode.lines().forEach {
-                w.write("        ${it.trim()}\n")
-            }
-            w.write("    }\n")
+            w.write("    $enumVal(get$enumVal())${sep}\n")
         }
 
         // constructor
@@ -54,10 +45,20 @@ internal class JavaEnumClass(idlElement: IdlEnum, idlPkg: String, packagePrefix:
             }
         """.trimIndent().prependIndent(4))
 
+        // native value getters, including library loader / initializer call
         w.write("\n\n")
-        // native value getters
         idlElement.unprefixedValues.forEach { enumVal ->
-            w.write("    private static native int _get$enumVal();\n")
+            w.write("""
+                private static native int _get$enumVal();
+                private static int get$enumVal() {
+            """.trimIndent().prependIndent(4))
+            if (staticCode.isNotEmpty()) {
+                w.write("\n")
+                staticCode.lines().forEach {
+                    w.write("        ${it.trim()}\n")
+                }
+            }
+            w.write("        return _get$enumVal();\n    }\n\n")
         }
 
         w.append("""
@@ -76,7 +77,7 @@ internal class JavaEnumClass(idlElement: IdlEnum, idlPkg: String, packagePrefix:
         w.use {
             generatePackage(w)
             generateClassStart(w)
-            w.append("}\n")
+            w.write("}\n")
         }
     }
 }
