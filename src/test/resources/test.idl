@@ -3,6 +3,7 @@ interface AnInterface {
     void aFunction(long param1, optional VoidPtr param2);
 
     attribute unsigned long long someAttribute;
+    readonly attribute unsigned long long readOnlyAttribute;
 };
 
 [Prefix = "someNamespaceWithSpace::"]

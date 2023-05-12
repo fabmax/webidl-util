@@ -22,6 +22,7 @@ enum class WebIdlParserType {
     Attribute {
         override fun possibleChildren(): List<WebIdlParserType> = emptyList()
         override suspend fun matches(stream: WebIdlStream) = stream.startsWith("attribute")
+                || stream.startsWith("readonly attribute")
                 || stream.startsWith("static attribute")
                 || stream.startsWith("static readonly attribute")
         override fun newParser(parserState: WebIdlParser.ParserState) = parserState.pushParser(

@@ -25,8 +25,9 @@ class ParserTest {
         Assert.assertEquals("AnInterface", model.interfaces[0].name)
         Assert.assertTrue(model.interfaces[0].functions.size == 1)
         Assert.assertEquals("aFunction", model.interfaces[0].functions[0].name)
-        Assert.assertTrue(model.interfaces[0].attributes.size == 1)
+        Assert.assertTrue(model.interfaces[0].attributes.size == 2)
         Assert.assertEquals("someAttribute", model.interfaces[0].attributes[0].name)
+        Assert.assertTrue("readOnlyAttribute", model.interfaces[0].attributes[1].isReadonly)
         Assert.assertTrue(model.interfaces[0].hasDecorator(IdlDecorator.NO_DELETE))
         Assert.assertEquals("someNamespace::", model.interfaces[0].getDecoratorValue("Prefix", ""))
 
