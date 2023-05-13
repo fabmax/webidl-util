@@ -1,7 +1,7 @@
 # webidl-util
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/de.fabmax/webidl-util/badge.svg)](https://maven-badges.herokuapp.com/maven-central/de.fabmax/webidl-util)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/de.fabmax/webidl-util/badge.svg)](https://central.sonatype.com/artifact/de.fabmax/webidl-util)
 
 A parser and code-generator for WebIDL files.
 
@@ -24,7 +24,7 @@ So it's arguably in a state where you could actually use it.
 This library is published to maven central, so you can easily add ít to your (gradle-)dependencies:
 ```
 dependencies {
-    implementation("de.fabmax:webidl-util:0.7.7")
+    implementation("de.fabmax:webidl-util:0.8.1")
 }
 ```
 
@@ -63,11 +63,9 @@ fun main() {
 ## Limitations
 This is a work-in-progress project, and I implement features as I need them, so there are a limitations:
 
-- Code is generated with minimal documentation (WebIDL files typically don't contain docs, but it would be super cool
-  to crawl and include the documentation of the corresponding native lib)
-
 ### WebIDL Parser
-- The parser is quite robust but doesn't provide very useful messages on syntax errors.
+- The parser is quite robust and provides somewhat useful messages on syntax errors, however there might be edge
+  cases which are not correctly parsed.
 - Consistency of the parsed model is not checked (e.g. missing referenced interfaces don't produce an error).
 
 ### Kotlin/js Interface Generator

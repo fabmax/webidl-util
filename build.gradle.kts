@@ -1,16 +1,15 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.io.FileInputStream
 import java.util.*
 
 plugins {
-    kotlin("jvm") version "1.7.21"
-    id("org.jetbrains.dokka") version "1.7.20"
+    kotlin("jvm") version "1.8.20"
+    id("org.jetbrains.dokka") version "1.8.10"
     `maven-publish`
     signing
 }
 
 group = "de.fabmax"
-version = "0.8.1-SNAPSHOT"
+version = "0.8.1"
 
 repositories {
     mavenCentral()
@@ -18,15 +17,13 @@ repositories {
 
 dependencies {
     implementation(kotlin("stdlib"))
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
 
-    testImplementation("junit:junit:4.13")
+    testImplementation("junit:junit:4.13.1")
 }
 
-tasks.withType<KotlinCompile>().all {
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
+kotlin {
+    jvmToolchain(8)
 }
 
 tasks.test {
