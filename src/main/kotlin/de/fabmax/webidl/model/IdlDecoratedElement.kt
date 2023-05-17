@@ -19,11 +19,19 @@ abstract class IdlDecoratedElement protected constructor(builder: Builder) : Idl
         if (platformName.isBlank()) {
             return true
         }
+        val platforms = getPlatforms()
+        return platforms.isEmpty() || platformName in platforms
+    }
+
+    fun getPlatforms(): List<String> {
         val platforms = getDecoratorValue(IdlDecorator.PLATFORMS, "")
-            .removeSurrounding("\"")
+        if (platforms.isEmpty()) {
+            return emptyList()
+        }
+        return platforms.removeSurrounding("\"")
             .split(";")
             .filter { it.isNotBlank() }
-        return platforms.isEmpty() || platformName in platforms
+            .map { it.trim() }
     }
 
     override fun toString(indent: String) = decoratorsToStringOrEmpty(indent)

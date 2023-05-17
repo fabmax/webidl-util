@@ -7,7 +7,7 @@ import de.fabmax.webidl.model.IdlInterface
 import de.fabmax.webidl.model.IdlModel
 import java.io.Writer
 
-internal class CallbackGenerator(val model: IdlModel) {
+internal class CallbackGenerator(val model: IdlModel, val platform: String) {
 
     fun generateJniThreadManager(w: Writer) {
         // generate support code, which auto attaches and detaches native threads to the Java VM
@@ -67,7 +67,10 @@ internal class CallbackGenerator(val model: IdlModel) {
     }
 
     fun generateCallbackClasses(w: Writer) {
-        model.interfaces.filter { it.hasDecorator(IdlDecorator.JS_IMPLEMENTATION) }.forEach { it.generateCallbackClass(w) }
+        model.interfaces
+            .filter { it.hasDecorator(IdlDecorator.JS_IMPLEMENTATION) }
+            .filter { it.matchesPlatform(platform) }
+            .forEach { it.generateCallbackClass(w) }
     }
 
     private fun IdlInterface.generateCallbackClass(w: Writer) {

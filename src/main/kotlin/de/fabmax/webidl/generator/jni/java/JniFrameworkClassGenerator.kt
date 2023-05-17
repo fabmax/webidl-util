@@ -4,6 +4,37 @@ import de.fabmax.webidl.generator.prependIndent
 import de.fabmax.webidl.model.IdlInterface
 import de.fabmax.webidl.model.IdlModel
 
+internal fun JniJavaGenerator.generatePlatformChecks(model: IdlModel): JavaClass {
+    val fwPlatformFlags = IdlInterface.Builder(JniJavaGenerator.PLATFORM_CHECKS_NAME).build()
+    fwPlatformFlags.finishModel(model)
+
+    return JavaClass(fwPlatformFlags, "", packagePrefix).apply {
+        protectedDefaultContructor = true
+        generatePointerWrapMethods = false
+    }.apply {
+        generateSource(createOutFileWriter(fileName)) {
+            append("""
+                public static final int PLATFORM_WINDOWS = ${JniJavaGenerator.PLATFORM_BIT_WINDOWS};
+                public static final int PLATFORM_LINUX = ${JniJavaGenerator.PLATFORM_BIT_LINUX};
+                public static final int PLATFORM_MACOS = ${JniJavaGenerator.PLATFORM_BIT_MACOS};
+                public static final int PLATFORM_OTHER = ${JniJavaGenerator.PLATFORM_BIT_OTHER};
+                
+                private static int platformBit = PLATFORM_OTHER;
+                
+                public static void setPlatformBit(int platformBit) {
+                    ${JniJavaGenerator.PLATFORM_CHECKS_NAME}.platformBit = platformBit;
+                }
+                
+                public static void requirePlatform(int supportedPlatforms, String name) {
+                    if (supportedPlatforms & platformBit == 0) {
+                        throw new RuntimeException(name + " is not supported on this platform. If you think this is a mistake, make sure the correct platform is set by calling PlatformChecks.setPlatformBit().");
+                    }
+                }
+            """.trimIndent().prependIndent(4)).append('\n')
+        }
+    }
+}
+
 internal fun JniJavaGenerator.generateNativeObject(model: IdlModel): JavaClass {
     val fwNativeObj = IdlInterface.Builder(JniJavaGenerator.NATIVE_OBJECT_NAME).build()
     fwNativeObj.finishModel(model)
@@ -33,6 +64,10 @@ internal fun JniJavaGenerator.generateNativeObject(model: IdlModel): JavaClass {
                 
                 public static NativeObject wrapPointer(long address) {
                     return new NativeObject(address);
+                }
+                
+                protected void checkPlatform(int supportedPlatforms) {
+                    PlatformChecks.requirePlatform(supportedPlatforms, getClass().getName());
                 }
                 
                 protected void checkNotNull() {

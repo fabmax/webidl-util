@@ -35,6 +35,7 @@ class JniJavaGenerator : CodeGenerator() {
     val parseCommentsFromDirectories = mutableListOf<String>()
 
     private lateinit var nativeObject: JavaClass
+    private lateinit var platformChecks: JavaClass
     private val typeMap = mutableMapOf<String, JavaType>()
     private lateinit var model: IdlModel
 
@@ -92,8 +93,21 @@ class JniJavaGenerator : CodeGenerator() {
 
     private fun generateFrameworkClasses(model: IdlModel) {
         nativeObject = generateNativeObject(model)
+        platformChecks = generatePlatformChecks(model)
         generateJniThreadManager(model)
         generateJavaNativeRef(model, nativeObject)
+    }
+
+    private fun getPlatformMask(element: IdlDecoratedElement): Int {
+        var mask = 0
+        element.getPlatforms().forEach {
+            val bit = platformBits.getOrDefault(it, PLATFORM_BIT_OTHER)
+            if (bit == PLATFORM_BIT_OTHER) {
+                System.err.println("Unrecognized platform name: $it")
+            }
+            mask = mask or bit
+        }
+        return mask
     }
 
     private fun makeClassMappings(model: IdlModel) {
@@ -102,32 +116,48 @@ class JniJavaGenerator : CodeGenerator() {
 
         // 1st pass collect all interface/class and enum types
         for (idlPkg in model.collectPackages()) {
-            for (idlIf in model.getInterfacesByPackage(idlPkg).filter { it.matchesPlatform(platform) }) {
+            for (idlIf in model.getInterfacesByPackage(idlPkg)) {
                 typeMap[idlIf.name] = JavaClass(idlIf, idlPkg, packagePrefix).apply {
                     protectedDefaultContructor = !idlIf.hasDefaultConstructor() && !idlIf.isCallback()
                     generatePointerWrapMethods = true
                     comments = this@JniJavaGenerator.comments[idlIf.name] as? CppClassComments
                     // no need to include static onClassLoad code here as it is inserted into NativeObject, which
                     // is the super class of all IdlInterfaces
+
+                    if (idlIf.hasDecorator(IdlDecorator.PLATFORMS)
+                        || idlIf.attributes.any { it.hasDecorator(IdlDecorator.PLATFORMS) }
+                        || idlIf.functions.any { it.hasDecorator(IdlDecorator.PLATFORMS) }
+                    ) {
+                        imports += platformChecks
+                    }
+                    if (idlIf.hasDecorator(IdlDecorator.PLATFORMS)) {
+                        staticCode = "PlatformChecks.requirePlatform(${getPlatformMask(idlIf)}, \"$fqn\");"
+                    }
                 }
             }
-            for (idlEn in model.getEnumsByPackage(idlPkg).filter { it.matchesPlatform(platform) }) {
+            for (idlEn in model.getEnumsByPackage(idlPkg)) {
                 typeMap[idlEn.name] = JavaEnumClass(idlEn, idlPkg, packagePrefix).apply {
-                    staticCode = onClassLoad
                     comments = this@JniJavaGenerator.comments[idlEn.name] as? CppEnumComments
+                    staticCode = onClassLoad
+                    if (idlEn.hasDecorator(IdlDecorator.PLATFORMS)) {
+                        if (staticCode.isNotEmpty()) {
+                            staticCode += "\n"
+                        }
+                        staticCode += "${platformChecks.fqn}.requirePlatform(${getPlatformMask(idlEn)}, \"$fqn\");"
+                    }
                 }
             }
         }
 
         // 2nd pass collect imports and set super classes
-        for (idlIf in model.platformInterfaces) {
+        for (idlIf in model.interfaces) {
             val imports = mutableSetOf<String>()
 
             idlIf.superInterfaces.forEach { imports += it }
             if (idlIf.superInterfaces.isEmpty() && !idlIf.isCallback()) {
                 imports += nativeObject.name
             }
-            idlIf.platformFunctions.forEach { func ->
+            idlIf.functions.forEach { func ->
                 if (func.returnType.isComplexType) {
                     imports += func.returnType.typeName
                 } else if (func.returnType.isAnyOrVoidPtr) {
@@ -141,7 +171,7 @@ class JniJavaGenerator : CodeGenerator() {
                     }
                 }
             }
-            idlIf.platformAttributes.forEach { attrib ->
+            idlIf.attributes.forEach { attrib ->
                 if (attrib.type.isComplexType) {
                     imports += attrib.type.typeName
                 } else if (attrib.type.isAnyOrVoidPtr) {
@@ -186,11 +216,11 @@ class JniJavaGenerator : CodeGenerator() {
     }
 
     private fun IdlInterface.hasDefaultConstructor(): Boolean {
-        return platformFunctions.any { it.name == name && it.parameters.isEmpty() }
+        return functions.any { it.name == name && it.parameters.isEmpty() }
     }
 
     private fun IdlModel.generatePackage(idlPkg: String) {
-        getInterfacesByPackage(idlPkg).filter { it.matchesPlatform(platform) }.forEach { idlIf ->
+        getInterfacesByPackage(idlPkg).forEach { idlIf ->
             val javaClass = typeMap[idlIf.name] as? JavaClass ?: throw IllegalStateException("Unknown idl type: $name")
             if (idlIf.isCallback()) {
                 // generate callback class
@@ -200,7 +230,7 @@ class JniJavaGenerator : CodeGenerator() {
                 idlIf.generate(javaClass)
             }
         }
-        getEnumsByPackage(idlPkg).filter { it.matchesPlatform(platform) }.forEach { idlEn ->
+        getEnumsByPackage(idlPkg).forEach { idlEn ->
             val javaClass = typeMap[idlEn.name] as? JavaEnumClass ?: throw IllegalStateException("Unknown idl type: $name")
             idlEn.generate(javaClass)
         }
@@ -217,7 +247,7 @@ class JniJavaGenerator : CodeGenerator() {
         """.trimIndent().prependIndent(4)).append("\n\n")
         generateDestructor(this)
 
-        val nonCtorFunctions = platformFunctions.filter { it.name != name }
+        val nonCtorFunctions = functions.filter { it.name != name }
         if (nonCtorFunctions.isNotEmpty()) {
             append("    // Functions\n\n")
             nonCtorFunctions.forEach { func ->
@@ -273,7 +303,7 @@ class JniJavaGenerator : CodeGenerator() {
     }
 
     private fun IdlInterface.generate(javaClass: JavaClass) = javaClass.generateSource(createOutFileWriter(javaClass.path)) {
-        val ctorFunctions = platformFunctions.filter { it.name == name }
+        val ctorFunctions = functions.filter { it.name == name }
 
         if (javaClass.comments != null) {
             classesWithComments++
@@ -300,9 +330,9 @@ class JniJavaGenerator : CodeGenerator() {
             generateDestructor(this)
         }
 
-        if (platformAttributes.isNotEmpty()) {
+        if (attributes.isNotEmpty()) {
             append("    // Attributes\n\n")
-            platformAttributes.forEach { attrib ->
+            attributes.forEach { attrib ->
                 generateGet(javaClass, attrib, this)
                 if (!attrib.isReadonly) {
                     generateSet(javaClass, attrib, this)
@@ -310,7 +340,7 @@ class JniJavaGenerator : CodeGenerator() {
             }
         }
 
-        val nonCtorFunctions = platformFunctions.filter { it.name != name }
+        val nonCtorFunctions = functions.filter { it.name != name }
         if (nonCtorFunctions.isNotEmpty()) {
             append("    // Functions\n\n")
             nonCtorFunctions.forEach { func ->
@@ -332,6 +362,7 @@ class JniJavaGenerator : CodeGenerator() {
         var nativeArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
         var javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
         var callArgs = nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable()) }
+        val platformCheck = if (ctorFunc.hasDecorator(IdlDecorator.PLATFORMS)) "\n${indent(16)}checkPlatform(${getPlatformMask(ctorFunc)});" else ""
 
         if (nativeArgs.isNotEmpty()) {
             nativeArgs = ", $nativeArgs"
@@ -353,7 +384,7 @@ class JniJavaGenerator : CodeGenerator() {
             pDocs.putAll(paramDocs)
             generateJavadoc(pDocs, "Stack allocated object of $name", w)
             w.append("""
-                public static $name createAt(long address$javaArgs) {
+                public static $name createAt(long address$javaArgs) {$platformCheck
                     __placement_new_${ctorFunc.name}(address$callArgs);
                     $name createdObj = wrapPointer(address);
                     createdObj.isExternallyAllocated = true;
@@ -387,10 +418,11 @@ class JniJavaGenerator : CodeGenerator() {
         val nativeArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
         val javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
         val callArgs = nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable()) }
+        val platformCheck = if (ctorFunc.hasDecorator(IdlDecorator.PLATFORMS)) "\n${indent(16)}checkPlatform(${getPlatformMask(ctorFunc)});" else ""
 
         generateFunctionComment(javaClass, ctorFunc, w)
         w.append("""
-            public $name($javaArgs) {
+            public $name($javaArgs) {$platformCheck
                 address = _${ctorFunc.name}($callArgs);
             }
             private static native long _${ctorFunc.name}($nativeArgs);
@@ -427,11 +459,12 @@ class JniJavaGenerator : CodeGenerator() {
             nativeArgs += nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
             callArgs += nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable()) }
         }
-        val nullCheck = if (func.isStatic) "" else  "\n${indent(16)}checkNotNull();"
+        val nullCheck = if (func.isStatic) "" else "\n${indent(16)}checkNotNull();"
+        val platformCheck = if (func.hasDecorator(IdlDecorator.PLATFORMS)) "\n${indent(16)}checkPlatform(${getPlatformMask(func)});" else ""
 
         generateFunctionComment(javaClass, func, w)
         w.append("""
-            public$staticMod ${returnType.javaType} ${func.name}($javaArgs) {$nullCheck
+            public$staticMod ${returnType.javaType} ${func.name}($javaArgs) {$nullCheck$platformCheck
                 ${returnType.boxedReturn("_${func.name}($callArgs)")};
             }
             private static native ${returnType.internalType} _${func.name}($nativeArgs);
@@ -484,6 +517,7 @@ class JniJavaGenerator : CodeGenerator() {
         val addressSig = if (attrib.isStatic) "" else "long address"
         val addressCall = if (attrib.isStatic) "" else "address"
         val nullCheck = if (attrib.isStatic) "" else  "\n${indent(16)}checkNotNull();"
+        val platformCheck = if (attrib.hasDecorator(IdlDecorator.PLATFORMS)) "\n${indent(16)}checkPlatform(${getPlatformMask(attrib)});" else ""
 
         val cppComment = javaClass.getAttributeComment(attrib)
         if (cppComment != null) {
@@ -500,7 +534,7 @@ class JniJavaGenerator : CodeGenerator() {
         }
 
         w.append("""
-            public$staticMod ${javaType.javaType} $methodName($arrayModPub) {$nullCheck
+            public$staticMod ${javaType.javaType} $methodName($arrayModPub) {$nullCheck$platformCheck
                 ${javaType.boxedReturn("_$methodName($addressCall$arrayCallMod)")};
             }
             private static native ${javaType.internalType} _$methodName($addressSig$arrayModPriv);
@@ -516,6 +550,7 @@ class JniJavaGenerator : CodeGenerator() {
         val arrayCallMod = if (attrib.type.isArray) ", index" else ""
         val addressCall = if (attrib.isStatic) "" else "address"
         val nullCheck = if (attrib.isStatic) "" else  "\n${indent(16)}checkNotNull();"
+        val platformCheck = if (attrib.hasDecorator(IdlDecorator.PLATFORMS)) "\n${indent(16)}checkPlatform(${getPlatformMask(attrib)});" else ""
 
         var nativeSig = if (attrib.isStatic) "" else "long address"
         if (attrib.type.isArray) {
@@ -538,7 +573,7 @@ class JniJavaGenerator : CodeGenerator() {
         }
 
         w.append("""
-            public$staticMod void $methodName($arrayModPub${javaType.javaType} value) {$nullCheck
+            public$staticMod void $methodName($arrayModPub${javaType.javaType} value) {$nullCheck$platformCheck
                 _$methodName($addressCall$arrayCallMod, ${javaType.unbox("value", attrib.isNullable())});
             }
             private static native void _$methodName($nativeSig);
@@ -582,7 +617,19 @@ class JniJavaGenerator : CodeGenerator() {
     private fun JavaType(idlType: IdlType) = JavaTypeMapping(idlType, typeMap[idlType.typeName] is JavaEnumClass)
 
     companion object {
+        const val PLATFORM_CHECKS_NAME = "PlatformChecks"
         const val NATIVE_OBJECT_NAME = "NativeObject"
+
+        const val PLATFORM_BIT_WINDOWS = 1
+        const val PLATFORM_BIT_LINUX = 2
+        const val PLATFORM_BIT_MACOS = 4
+        const val PLATFORM_BIT_OTHER = 0x80000000.toInt()
+
+        val platformBits = mapOf(
+            PLATFORM_NAME_WINDOWS to PLATFORM_BIT_WINDOWS,
+            PLATFORM_NAME_LINUX to PLATFORM_BIT_LINUX,
+            PLATFORM_NAME_MACOS to PLATFORM_BIT_MACOS,
+        )
 
         val idlPrimitiveTypeMap = mapOf(
             "boolean" to "boolean",

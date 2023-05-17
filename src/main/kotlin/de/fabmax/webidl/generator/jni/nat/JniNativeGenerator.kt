@@ -7,6 +7,23 @@ import java.io.Writer
 
 class JniNativeGenerator : CodeGenerator() {
 
+    /**
+     * Platform name used for filtering IDL model elements. Leave empty to include all.
+     */
+    var platform = ""
+
+    val IdlModel.platformInterfaces: List<IdlInterface>
+        get() = interfaces.filter { it.matchesPlatform(platform) }
+
+    val IdlModel.platformEnums: List<IdlEnum>
+        get() = enums.filter { it.matchesPlatform(platform) }
+
+    val IdlInterface.platformFunctions: List<IdlFunction>
+        get() = functions.filter { it.matchesPlatform(platform) }
+
+    val IdlInterface.platformAttributes: List<IdlAttribute>
+        get() = attributes.filter { it.matchesPlatform(platform) }
+
     var glueFileName = "glue.h"
     var packagePrefix = ""
 
@@ -32,7 +49,7 @@ class JniNativeGenerator : CodeGenerator() {
             #include <jni.h>
         """.trimIndent()).append("\n\n")
 
-        val callbackGenerator = CallbackGenerator(this)
+        val callbackGenerator = CallbackGenerator(this, platform)
         callbackGenerator.generateJniThreadManager(w)
         callbackGenerator.generateCallbackClasses(w)
 

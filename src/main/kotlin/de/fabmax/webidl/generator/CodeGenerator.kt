@@ -1,30 +1,13 @@
 package de.fabmax.webidl.generator
 
-import de.fabmax.webidl.model.*
+import de.fabmax.webidl.model.IdlModel
 import java.io.*
 
 abstract class CodeGenerator {
 
     var outputDirectory = "./generated"
 
-    /**
-     * Platform name used for filtering IDL model elements. Leave empty to include all.
-     */
-    var platform = ""
-
     abstract fun generate(model: IdlModel)
-
-    val IdlModel.platformInterfaces: List<IdlInterface>
-        get() = interfaces.filter { it.matchesPlatform(platform) }
-
-    val IdlModel.platformEnums: List<IdlEnum>
-        get() = enums.filter { it.matchesPlatform(platform) }
-
-    val IdlInterface.platformFunctions: List<IdlFunction>
-        get() = functions.filter { it.matchesPlatform(platform) }
-
-    val IdlInterface.platformAttributes: List<IdlAttribute>
-        get() = attributes.filter { it.matchesPlatform(platform) }
 
     fun deleteDirectory(dir: File) {
         dir.listFiles()?.forEach {
@@ -56,6 +39,12 @@ abstract class CodeGenerator {
 
     fun firstCharToLower(str: String): String {
         return str[0].lowercaseChar() + str.substring(1)
+    }
+
+    companion object {
+        const val PLATFORM_NAME_WINDOWS = "windows"
+        const val PLATFORM_NAME_LINUX = "linux"
+        const val PLATFORM_NAME_MACOS = "macos"
     }
 }
 
