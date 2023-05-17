@@ -110,6 +110,13 @@ class JniJavaGenerator : CodeGenerator() {
         return mask
     }
 
+    private fun generateCheckPlatform(element: IdlDecoratedElement, javaClass: JavaClass): String {
+        if (!element.hasDecorator(IdlDecorator.PLATFORMS)) {
+            return ""
+        }
+        return "\n${indent(16)}${platformChecks.name}.requirePlatform(${getPlatformMask(element)}, \"${javaClass.fqn}\");"
+    }
+
     private fun makeClassMappings(model: IdlModel) {
         typeMap.clear()
         typeMap[nativeObject.name] = nativeObject
@@ -314,7 +321,7 @@ class JniJavaGenerator : CodeGenerator() {
         if (hasDecorator(IdlDecorator.STACK_ALLOCATABLE)) {
             append("    // Placed Constructors\n\n")
             ctorFunctions.forEach { ctor ->
-                generatePlacedConstructor(ctor, this)
+                generatePlacedConstructor(javaClass, ctor, this)
             }
         }
 
@@ -357,12 +364,12 @@ class JniJavaGenerator : CodeGenerator() {
         return hasDecorator(IdlDecorator.NULLABLE)
     }
 
-    private fun IdlInterface.generatePlacedConstructor(ctorFunc: IdlFunction, w: Writer) {
+    private fun IdlInterface.generatePlacedConstructor(javaClass: JavaClass, ctorFunc: IdlFunction, w: Writer) {
         val nativeToJavaParams = ctorFunc.parameters.zip(ctorFunc.parameters.map { JavaType(it.type) })
         var nativeArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
         var javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
         var callArgs = nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable()) }
-        val platformCheck = if (ctorFunc.hasDecorator(IdlDecorator.PLATFORMS)) "\n${indent(16)}checkPlatform(${getPlatformMask(ctorFunc)});" else ""
+        val platformCheck = generateCheckPlatform(ctorFunc, javaClass)
 
         if (nativeArgs.isNotEmpty()) {
             nativeArgs = ", $nativeArgs"
@@ -418,7 +425,7 @@ class JniJavaGenerator : CodeGenerator() {
         val nativeArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
         val javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
         val callArgs = nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable()) }
-        val platformCheck = if (ctorFunc.hasDecorator(IdlDecorator.PLATFORMS)) "\n${indent(16)}checkPlatform(${getPlatformMask(ctorFunc)});" else ""
+        val platformCheck = generateCheckPlatform(ctorFunc, javaClass)
 
         generateFunctionComment(javaClass, ctorFunc, w)
         w.append("""
@@ -460,7 +467,7 @@ class JniJavaGenerator : CodeGenerator() {
             callArgs += nativeToJavaParams.joinToString { (nat, java) -> java.unbox(nat.name, nat.isNullable()) }
         }
         val nullCheck = if (func.isStatic) "" else "\n${indent(16)}checkNotNull();"
-        val platformCheck = if (func.hasDecorator(IdlDecorator.PLATFORMS)) "\n${indent(16)}checkPlatform(${getPlatformMask(func)});" else ""
+        val platformCheck = generateCheckPlatform(func, javaClass)
 
         generateFunctionComment(javaClass, func, w)
         w.append("""
@@ -517,7 +524,7 @@ class JniJavaGenerator : CodeGenerator() {
         val addressSig = if (attrib.isStatic) "" else "long address"
         val addressCall = if (attrib.isStatic) "" else "address"
         val nullCheck = if (attrib.isStatic) "" else  "\n${indent(16)}checkNotNull();"
-        val platformCheck = if (attrib.hasDecorator(IdlDecorator.PLATFORMS)) "\n${indent(16)}checkPlatform(${getPlatformMask(attrib)});" else ""
+        val platformCheck = generateCheckPlatform(attrib, javaClass)
 
         val cppComment = javaClass.getAttributeComment(attrib)
         if (cppComment != null) {
@@ -550,7 +557,7 @@ class JniJavaGenerator : CodeGenerator() {
         val arrayCallMod = if (attrib.type.isArray) ", index" else ""
         val addressCall = if (attrib.isStatic) "" else "address"
         val nullCheck = if (attrib.isStatic) "" else  "\n${indent(16)}checkNotNull();"
-        val platformCheck = if (attrib.hasDecorator(IdlDecorator.PLATFORMS)) "\n${indent(16)}checkPlatform(${getPlatformMask(attrib)});" else ""
+        val platformCheck = generateCheckPlatform(attrib, javaClass)
 
         var nativeSig = if (attrib.isStatic) "" else "long address"
         if (attrib.type.isArray) {

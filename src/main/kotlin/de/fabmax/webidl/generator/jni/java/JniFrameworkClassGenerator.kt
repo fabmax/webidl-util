@@ -26,7 +26,7 @@ internal fun JniJavaGenerator.generatePlatformChecks(model: IdlModel): JavaClass
                 }
                 
                 public static void requirePlatform(int supportedPlatforms, String name) {
-                    if (supportedPlatforms & platformBit == 0) {
+                    if ((supportedPlatforms & platformBit) == 0) {
                         throw new RuntimeException(name + " is not supported on this platform. If you think this is a mistake, make sure the correct platform is set by calling PlatformChecks.setPlatformBit().");
                     }
                 }
@@ -64,10 +64,6 @@ internal fun JniJavaGenerator.generateNativeObject(model: IdlModel): JavaClass {
                 
                 public static NativeObject wrapPointer(long address) {
                     return new NativeObject(address);
-                }
-                
-                protected void checkPlatform(int supportedPlatforms) {
-                    PlatformChecks.requirePlatform(supportedPlatforms, getClass().getName());
                 }
                 
                 protected void checkNotNull() {
