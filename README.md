@@ -17,14 +17,14 @@ rely on the same library APIs for JVM and javascript platforms. However, the gen
 be used in non-multiplatform projects. The JNI code can even be used in plain Java without any Kotlin.
 
 Although this is still work in progress, I use this to generate JNI bindings for Nvidia PhysX:
-[physx-jni](https://github.com/fabmax/physx-jni) with ~170 generated java classes and no manual tweaking.
+[physx-jni](https://github.com/fabmax/physx-jni) with ~370 generated java classes and no manual tweaking.
 So it's arguably in a state where you could actually use it.
 
 ## How to use
-This library is published to maven central, so you can easily add ít to your (gradle-)dependencies:
+This library is published to maven central, so you can easily add it to your (gradle-)dependencies:
 ```
 dependencies {
-    implementation("de.fabmax:webidl-util:0.8.1")
+    implementation("de.fabmax:webidl-util:0.8.2")
 }
 ```
 
