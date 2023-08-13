@@ -68,6 +68,9 @@ class JniNativeGenerator : CodeGenerator() {
             }
             getEnumsByPackage(pkg).filter { it.matchesPlatform(platform) }.forEach { it.generate(w) }
         }
+
+        callbackGenerator.generateJniOnLoad(w)
+
         w.write("\n} // /extern \"C\"\n")
     }
 
@@ -129,11 +132,10 @@ class JniNativeGenerator : CodeGenerator() {
             }
         }
         platformFunctions.forEach { func ->
-            val isOverloaded = platformFunctions.filter { it.name == func.name }.count() > 1
             if (func.name == name) {
-                generateCtor(func, isOverloaded, w)
+                generateCtor(func, w)
             } else {
-                generateFunction(func, isOverloaded, w)
+                generateFunction(func, w)
             }
         }
         if (!hasDecorator(IdlDecorator.NO_DELETE)) {
@@ -147,15 +149,14 @@ class JniNativeGenerator : CodeGenerator() {
         }
     }
 
-    private fun IdlInterface.generateFunction(func: IdlFunction, isOverloaded: Boolean, w: Writer) {
+    private fun IdlInterface.generateFunction(func: IdlFunction, w: Writer) {
         w.nativeFunc {
             val ifPrefix = getDecoratorValue("Prefix", "")
             val natReturnType = func.getNativeType(model)
-            val suffix = func.getFunctionSuffix(isOverloaded)
             val funcArgs = func.parameters.joinToString(", ") { it.getNativeType(model).castJniToNative(it.name) }
 
             returnType = natReturnType.jniType()
-            functionName = nativeFunName(sourcePackage, name, func.name, suffix)
+            functionName = JavaTypeSignature.getJniNativeFunctionName(func, packagePrefix, platform)
             isReceivingAddress = !func.isStatic
             isUsingEnv = func.parameters.any { it.type.isString } || func.returnType.isString
             extraArgs = generateFuncArgs(func)
@@ -199,14 +200,13 @@ class JniNativeGenerator : CodeGenerator() {
         }
     }
 
-    private fun IdlInterface.generateCtor(func: IdlFunction, isOverloaded: Boolean, w: Writer) {
+    private fun IdlInterface.generateCtor(func: IdlFunction, w: Writer) {
         w.nativeFunc {
             val natType = getNativeType(model)
-            val suffix = func.getFunctionSuffix(isOverloaded, true)
             val ctorArgs = func.parameters.joinToString(", ") { it.getNativeType(model).castJniToNative(it.name) }
 
             returnType = "jlong"
-            functionName = nativeFunName(sourcePackage, name, func.name, suffix)
+            functionName = JavaTypeSignature.getJniNativeFunctionName(func, packagePrefix, platform)
             isUsingEnv = func.parameters.any { it.type.isString }
             isReceivingAddress = false
             extraArgs = generateFuncArgs(func)

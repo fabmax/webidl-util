@@ -39,20 +39,6 @@ internal class CallbackGenerator(val model: IdlModel, val platform: String) {
             
             static thread_local JniThreadEnv jniThreadEnv;
             
-            extern "C" {
-                JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
-                    javaVm = vm;
-                    
-                    JNIEnv* env;
-                    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
-                        return JNI_ERR;
-                    }
-                    
-                    jniThreadEnv = JniThreadEnv(env);
-                    return JNI_VERSION_1_6;
-                }
-            }
-            
             class JavaNativeRef {
                 public:
                     JavaNativeRef(JNIEnv *env, jobject javaRef) {
@@ -66,6 +52,24 @@ internal class CallbackGenerator(val model: IdlModel, val platform: String) {
                     jobject javaGlobalRef;
             };
         """.trimIndent()).append("\n\n")
+    }
+
+    fun generateJniOnLoad(w: Writer) {
+        w.append("\n\n")
+        w.append("""
+            // on load callback executed by the JVM once the lib is loaded
+            JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
+                javaVm = vm;
+                
+                JNIEnv* env;
+                if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+                    return JNI_ERR;
+                }
+                jniThreadEnv = JniThreadEnv(env);
+                
+                return JNI_VERSION_1_6;
+            }
+        """.trimIndent())
     }
 
     fun generateCallbackClasses(w: Writer) {

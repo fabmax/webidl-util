@@ -148,6 +148,31 @@ internal class NativeType(model: IdlModel, val idlType: IdlType, val isValue: Bo
 }
 
 internal object JavaTypeSignature {
+
+    fun getJniNativeFunctionName(func: IdlFunction, packagePrefix: String, platform: String): String {
+        val parentIf = func.parentInterface ?: throw IllegalStateException("parentInterface of function ${func.name} not set")
+        val parentModel = parentIf.parentModel ?: throw IllegalStateException("parentModel of interface ${parentIf.name} not set")
+
+        var name = packagePrefix
+        if (name.isNotEmpty()) { name += "." }
+        name += parentIf.sourcePackage
+        if (name.isNotEmpty() && !name.endsWith(".")) { name += "." }
+        name += "${parentIf.name}._${func.name}"
+        name = name
+            .replace("_", "_1")
+            .replace(".", "_")
+
+        val isCtor = func.name == parentIf.name
+        val isOverloaded = parentIf.functions.count { it.matchesPlatform(platform) && it.name == func.name } > 1
+        val nameSuffix = if (isOverloaded) {
+            "__" + getFunctionTypeSuffix(func, !func.isStatic && !isCtor, parentModel)
+        } else {
+            ""
+        }
+
+        return "Java_$name$nameSuffix"
+    }
+
     fun getFunctionTypeSuffix(func: IdlFunction, receivesAddress: Boolean, model: IdlModel): String {
         var signature = ""
         if (receivesAddress) { signature += "J" } // long address
@@ -156,7 +181,7 @@ internal object JavaTypeSignature {
         }
     }
 
-    fun getJavaFunctionSignature(func: IdlFunction, model: IdlModel): String {
+    fun getJavaFunctionSignature(func: IdlFunction, model: IdlModel = func.parentModel!!): String {
         val paramsSig = func.parameters.joinToString(""){ getTypeSignature(it.type, model, false) }
         val returnSig = getTypeSignature(func.returnType, model, false)
         return "($paramsSig)$returnSig"
