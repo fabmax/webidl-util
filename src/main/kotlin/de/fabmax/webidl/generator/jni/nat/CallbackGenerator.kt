@@ -9,12 +9,11 @@ import java.io.Writer
 
 internal class CallbackGenerator(val model: IdlModel, val platform: String) {
 
-    fun generateJniThreadManager(w: Writer) {
-        // generate support code, which auto attaches and detaches native threads to the Java VM
-        // this ie needed for callbacks from the native side to Java from other threads than the main thread
-        // Java code must call JniThreadManager.init() after native lib is loaded for this to work.
+    fun generateJniSupportCode(w: Writer) {
+        // Generate support code, which auto attaches and detaches native threads to the Java VM.
+        // This is needed for callbacks from the native side to Java from other threads than the main thread.
         w.append("""
-            static JavaVM * javaVm = NULL;
+            static JavaVM* javaVm = NULL;
             
             class JniThreadEnv {
                 public:
@@ -40,16 +39,19 @@ internal class CallbackGenerator(val model: IdlModel, val platform: String) {
             
             static thread_local JniThreadEnv jniThreadEnv;
             
-            class JniThreadManager {
-                public:
-                    static bool init(JNIEnv *env) {
-                        if (env->GetJavaVM(&javaVm) != 0) {
-                            return false;
-                        }
-                        jniThreadEnv = JniThreadEnv(env);
-                        return true;
+            extern "C" {
+                JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
+                    javaVm = vm;
+                    
+                    JNIEnv* env;
+                    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+                        return JNI_ERR;
                     }
-            };
+                    
+                    jniThreadEnv = JniThreadEnv(env);
+                    return JNI_VERSION_1_6;
+                }
+            }
             
             class JavaNativeRef {
                 public:

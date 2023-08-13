@@ -50,7 +50,7 @@ class JniNativeGenerator : CodeGenerator() {
         """.trimIndent()).append("\n\n")
 
         val callbackGenerator = CallbackGenerator(this, platform)
-        callbackGenerator.generateJniThreadManager(w)
+        callbackGenerator.generateJniSupportCode(w)
         callbackGenerator.generateCallbackClasses(w)
 
         w.append("extern \"C\" {\n")
@@ -79,13 +79,6 @@ class JniNativeGenerator : CodeGenerator() {
             body = "return sizeof(void*);"
         }
         w.append('\n').append("""
-            // JniThreadManager
-            JNIEXPORT jboolean JNICALL ${nativeFunName("", "JniThreadManager", "init")}(JNIEnv* env, jclass) {
-                return (jboolean) JniThreadManager::init(env);
-            }
-            JNIEXPORT void JNICALL ${nativeFunName("", "JniThreadManager", "delete_native_instance")}(JNIEnv*, jclass, jlong address) {
-                delete (JniThreadManager*) address;
-            }
             // JavaNativeRef
             JNIEXPORT jlong JNICALL ${nativeFunName("", "JavaNativeRef", "new_instance")}(JNIEnv* env, jclass, jobject javaRef) {
                 return (jlong) new JavaNativeRef(env, javaRef);

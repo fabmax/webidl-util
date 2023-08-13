@@ -94,7 +94,6 @@ class JniJavaGenerator : CodeGenerator() {
     private fun generateFrameworkClasses(model: IdlModel) {
         nativeObject = generateNativeObject(model)
         platformChecks = generatePlatformChecks(model)
-        generateJniThreadManager(model)
         generateJavaNativeRef(model, nativeObject)
     }
 

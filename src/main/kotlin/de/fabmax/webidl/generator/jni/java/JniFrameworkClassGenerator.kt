@@ -98,33 +98,6 @@ internal fun JniJavaGenerator.generateNativeObject(model: IdlModel): JavaClass {
     }
 }
 
-internal fun JniJavaGenerator.generateJniThreadManager(model: IdlModel): JavaClass {
-    val fwThreadManager = IdlInterface.Builder("JniThreadManager").build()
-    fwThreadManager.finishModel(model)
-
-    return JavaClass(fwThreadManager, "", packagePrefix).apply {
-        protectedDefaultContructor = false
-        generatePointerWrapMethods = false
-        staticCode = onClassLoad
-        importFqns += "java.util.concurrent.atomic.AtomicBoolean"
-    }.apply {
-        generateSource(createOutFileWriter(fileName)) {
-            append("""
-                private static AtomicBoolean isInitialized = new AtomicBoolean(false);
-                private static boolean isInitSuccess = false;
-                
-                public static boolean init() {
-                    if (!isInitialized.getAndSet(true)) {
-                        isInitSuccess = _init();
-                    }
-                    return isInitSuccess;
-                }
-                private static native boolean _init();
-            """.trimIndent().prependIndent(4))
-        }
-    }
-}
-
 internal fun JniJavaGenerator.generateJavaNativeRef(model: IdlModel, nativeObject: JavaClass): JavaClass {
     val fwJavaNativeRef = IdlInterface.Builder("JavaNativeRef").build()
     fwJavaNativeRef.finishModel(model)
