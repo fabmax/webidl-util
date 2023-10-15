@@ -45,6 +45,7 @@ abstract class CodeGenerator {
         const val PLATFORM_NAME_WINDOWS = "windows"
         const val PLATFORM_NAME_LINUX = "linux"
         const val PLATFORM_NAME_MACOS = "macos"
+        const val PLATFORM_NAME_ANDROID = "android"
     }
 }
 

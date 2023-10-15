@@ -629,12 +629,14 @@ class JniJavaGenerator : CodeGenerator() {
         const val PLATFORM_BIT_WINDOWS = 1
         const val PLATFORM_BIT_LINUX = 2
         const val PLATFORM_BIT_MACOS = 4
+        const val PLATFORM_BIT_ANDROID = 8
         const val PLATFORM_BIT_OTHER = 0x80000000.toInt()
 
         val platformBits = mapOf(
             PLATFORM_NAME_WINDOWS to PLATFORM_BIT_WINDOWS,
             PLATFORM_NAME_LINUX to PLATFORM_BIT_LINUX,
             PLATFORM_NAME_MACOS to PLATFORM_BIT_MACOS,
+            PLATFORM_NAME_ANDROID to PLATFORM_BIT_ANDROID,
         )
 
         val idlPrimitiveTypeMap = mapOf(

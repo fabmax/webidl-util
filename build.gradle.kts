@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "de.fabmax"
-version = "0.8.3-SNAPSHOT"
+version = "0.8.4"
 
 repositories {
     mavenCentral()

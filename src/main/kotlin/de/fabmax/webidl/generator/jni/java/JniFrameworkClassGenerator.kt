@@ -17,6 +17,7 @@ internal fun JniJavaGenerator.generatePlatformChecks(model: IdlModel): JavaClass
                 public static final int PLATFORM_WINDOWS = ${JniJavaGenerator.PLATFORM_BIT_WINDOWS};
                 public static final int PLATFORM_LINUX = ${JniJavaGenerator.PLATFORM_BIT_LINUX};
                 public static final int PLATFORM_MACOS = ${JniJavaGenerator.PLATFORM_BIT_MACOS};
+                public static final int PLATFORM_ANDROID = ${JniJavaGenerator.PLATFORM_BIT_ANDROID};
                 public static final int PLATFORM_OTHER = ${JniJavaGenerator.PLATFORM_BIT_OTHER};
                 
                 private static int platformBit = PLATFORM_OTHER;
