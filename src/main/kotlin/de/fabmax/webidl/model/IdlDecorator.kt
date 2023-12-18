@@ -17,5 +17,6 @@ data class IdlDecorator(val key: String, val value: String?) {
         const val NULLABLE = "Nullable"
         const val STACK_ALLOCATABLE = "StackAllocatable"
         const val PLATFORMS = "Platforms"
+        const val DEPRECATED = "Deprecated"
     }
 }

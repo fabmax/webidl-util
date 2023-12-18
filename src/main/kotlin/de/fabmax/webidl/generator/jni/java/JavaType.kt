@@ -1,6 +1,7 @@
 package de.fabmax.webidl.generator.jni.java
 
 import de.fabmax.webidl.model.IdlDecoratedElement
+import de.fabmax.webidl.model.IdlDecorator
 import de.fabmax.webidl.model.IdlInterface
 import de.fabmax.webidl.parser.CppComments
 import java.io.File
@@ -41,7 +42,11 @@ internal abstract class JavaType(val idlElement: IdlDecoratedElement, idlPkg: St
             val comment = DoxygenToJavadoc.makeJavadocString(comments.comment!!, idlElement as? IdlInterface, null)
             w.write(comment)
             w.write("\n")
-            if (comment.contains("@deprecated")) {
+            if (comment.contains("@deprecated") || idlElement.hasDecorator(IdlDecorator.DEPRECATED)) {
+                w.write("@Deprecated\n")
+            }
+        } else {
+            if (idlElement.hasDecorator(IdlDecorator.DEPRECATED)) {
                 w.write("@Deprecated\n")
             }
         }

@@ -2,22 +2,21 @@ import java.io.FileInputStream
 import java.util.*
 
 plugins {
-    kotlin("jvm") version "1.8.20"
-    id("org.jetbrains.dokka") version "1.8.10"
+    kotlin("jvm") version "1.9.21"
+    id("org.jetbrains.dokka") version "1.9.10"
     `maven-publish`
     signing
 }
 
 group = "de.fabmax"
-version = "0.8.4"
+version = "0.8.5-SNAPSHOT"
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    implementation(kotlin("stdlib"))
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
     testImplementation("junit:junit:4.13.1")
 }

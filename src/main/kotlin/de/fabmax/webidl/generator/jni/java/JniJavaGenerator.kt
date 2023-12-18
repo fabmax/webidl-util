@@ -468,9 +468,11 @@ class JniJavaGenerator : CodeGenerator() {
         val nullCheck = if (func.isStatic) "" else "\n${indent(16)}checkNotNull();"
         val platformCheck = generateCheckPlatform(func, javaClass)
 
+        val deprecated = if (func.hasDecorator(IdlDecorator.DEPRECATED)) "@Deprecated\n            " else ""
+
         generateFunctionComment(javaClass, func, w)
         w.append("""
-            public$staticMod ${returnType.javaType} ${func.name}($javaArgs) {$nullCheck$platformCheck
+            ${deprecated}public$staticMod ${returnType.javaType} ${func.name}($javaArgs) {$nullCheck$platformCheck
                 ${returnType.boxedReturn("_${func.name}($callArgs)")};
             }
             private static native ${returnType.internalType} _${func.name}($nativeArgs);
