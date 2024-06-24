@@ -14,7 +14,12 @@ class KtJsInterfaceGenerator : CodeGenerator() {
     /**
      * Module name, used for loading the module with "require('moduleName')"
      */
-    var moduleName = "Module"
+    var moduleName = "module"
+
+    /**
+     * Name of the emscripten loader Promise returning the loaded library
+     */
+    var modulePromiseName = "Module"
 
     /**
      * Added as a comment in every generated file
@@ -79,6 +84,9 @@ class KtJsInterfaceGenerator : CodeGenerator() {
         return ktPackage to path
     }
 
+    private fun String.trimIndentEmptyBlanks(): String = trimIndent().lines()
+        .joinToString("\n") { it.ifBlank { "" } }
+
     private fun generateLoader(model: IdlModel) {
         val localClsName = firstCharToUpper("${model.name}Loader")
         moduleMemberName = firstCharToLower(model.name)
@@ -88,18 +96,21 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             if (packagePrefix.isNotEmpty()) {
                 w.write("\npackage $packagePrefix\n\n")
             }
-            w.write("""                
+            w.write("""   
+                import kotlinx.coroutines.asDeferred             
                 import kotlin.js.Promise
+
+                @JsModule("$moduleName")
+                internal external val $modulePromiseName: () -> Promise<dynamic>
 
                 object $localClsName {
                     @JsName("$moduleMemberName")
                     internal var $moduleMemberName: dynamic = null
-                    @Suppress("UnsafeCastFromDynamic")
-                    private val ${moduleMemberName}Promise: Promise<dynamic> = js("require('$moduleName')")()
+                    private val ${moduleMemberName}Promise = $modulePromiseName()
+                    internal var physxDeferred = ${moduleMemberName}Promise.asDeferred()
 
+                    val isLoaded: Boolean get() = physxDeferred.isCompleted
                     private var isLoading = false
-                    private var isLoaded = false
-                
                     private val onLoadListeners = mutableListOf<() -> Unit>()
 
                     fun loadModule() {
@@ -107,7 +118,6 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                             isLoading = true
                             ${moduleMemberName}Promise.then { module: dynamic ->
                                 $moduleMemberName = module
-                                isLoaded = true
                                 onLoadListeners.forEach { it() }
                             }
                         }
@@ -131,7 +141,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                         physXJs.destroy(nativeObject)
                     }
                 }
-            """.trimIndent())
+            """.trimIndentEmptyBlanks())
         }
     }
 
@@ -151,7 +161,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                     @file:Suppress("UnsafeCastFromDynamic", "ClassName", "FunctionName", "UNUSED_PARAMETER", "unused")
 
                     package $ktPkg
-                """.trimIndent()).append("\n\n")
+                """.trimIndentEmptyBlanks()).append("\n\n")
                 getInterfacesByPackage(pkg).filter { it.matchesPlatform("emscripten") }.forEach {
                     if (it.hasDecorator(IdlDecorator.JS_IMPLEMENTATION)) {
                         it.generateCallback(this, w)
@@ -216,7 +226,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                      * Native object address.
                      */
                     val ptr: Int
-                """.trimIndent().prependIndent("    ")).append("\n\n")
+                """.trimIndentEmptyBlanks().prependIndent("    ")).append("\n\n")
             }
 
             emscriptenAttributes.forEach { attr ->
@@ -224,7 +234,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                     /**
                      * ${makeTypeDoc(attr.type, attr.decorators)}
                      */
-                """.trimIndent().prependIndent("    ")).append("\n")
+                """.trimIndentEmptyBlanks().prependIndent("    ")).append("\n")
 
                 if (attr.type.isArray) {
                     val ktType = model.ktType(attr.type, attr.isNullable())
@@ -246,14 +256,14 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                 generateJavadoc(paramDocs, returnDoc, w)
 
                 // function declaration
-                val isOverride = if (func.isOverride(this, model)) "override " else ""
+                val modifier = if (func.isOverride(this, model)) "override " else ""
                 val argsStr = func.parameters.joinToString(", ") { "${it.name}: ${model.ktType(it.type, it.isNullable())}" }
                 val retType = if (func.returnType.typeName != "void") {
                     ": ${model.ktType(func.returnType, func.hasDecorator(IdlDecorator.NULLABLE))}"
                 } else {
                     ""
                 }
-                w.write("    ${isOverride}fun ${func.name}($argsStr)$retType\n\n")
+                w.write("    ${modifier}fun ${func.name}($argsStr)$retType\n\n")
             }
 
             w.write("}")
@@ -280,14 +290,14 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             val argsWithModule = (if (argsStr.isEmpty()) "" else "$argsStr, ") + "_module: dynamic = $moduleLocation"
             w.append("""
                 fun $name($argsWithModule): $name = js("new _module.$name($argNames)")
-            """.trimIndent()).append("\n\n")
+            """.trimIndentEmptyBlanks()).append("\n\n")
         }
     }
 
     private fun IdlInterface.generateExtensionPointerWrapper(w: Writer) {
         w.append("""
             fun ${name}FromPointer(ptr: Int, _module: dynamic = $moduleLocation): $name = js("_module.wrapPointer(ptr, _module.${name})")
-        """.trimIndent()).append("\n\n")
+        """.trimIndentEmptyBlanks()).append("\n\n")
     }
 
     private fun IdlInterface.generateExtensionDestructor(w: Writer) {
@@ -295,7 +305,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             fun $name.destroy() {
                 $loaderClassName.destroy(this)
             }
-        """.trimIndent()).append("\n\n")
+        """.trimIndentEmptyBlanks()).append("\n\n")
     }
 
     private fun IdlInterface.generateExtensionAttributes(w: Writer) {
@@ -309,7 +319,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             w.append("""
                 val $name.$attribName
                     get() = ${get.name}()
-            """.trimIndent()).append("\n")
+            """.trimIndentEmptyBlanks()).append("\n")
         }
         if (gets.isNotEmpty()) {
             w.append('\n')
@@ -329,7 +339,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                 var $name.$attribName
                     get() = ${get.name}()
                     set(value) { $setName(value) }
-            """.trimIndent()).append("\n")
+            """.trimIndentEmptyBlanks()).append("\n")
         }
         if (getSets.isNotEmpty()) {
             w.append('\n')

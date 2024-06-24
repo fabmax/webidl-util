@@ -2,8 +2,8 @@ import java.io.FileInputStream
 import java.util.*
 
 plugins {
-    kotlin("jvm") version "1.9.21"
-    id("org.jetbrains.dokka") version "1.9.10"
+    kotlin("jvm") version "2.0.0"
+    id("org.jetbrains.dokka") version "1.9.20"
     `maven-publish`
     signing
 }
@@ -16,7 +16,7 @@ repositories {
 }
 
 dependencies {
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
 
     testImplementation("junit:junit:4.13.1")
 }
