@@ -4,6 +4,7 @@ import java.util.*
 plugins {
     alias(libs.plugins.kotlin)
     alias(libs.plugins.dokka)
+    `java-gradle-plugin`
     `maven-publish`
     signing
 }
@@ -24,9 +25,27 @@ kotlin {
     jvmToolchain(8)
 }
 
+gradlePlugin {
+    plugins {
+        create("webidlPlugin") {
+            id = "de.fabmax.webidl-util"
+            implementationClass = "de.fabmax.webidl.gradle.WebIdlUtilPlugin"
+        }
+    }
+}
+
 tasks.test {
     testLogging {
         showStandardStreams = true
+    }
+}
+
+publishing {
+    repositories {
+        maven {
+            name = "localPluginRepository"
+            url = uri("$projectDir/plugin-repo")
+        }
     }
 }
 
@@ -34,7 +53,7 @@ tasks.register<Jar>("javadocJar") {
     dependsOn("dokkaJavadoc")
     group = "documentation"
     archiveClassifier.set("javadoc")
-    from("${layout.buildDirectory}/dokka/javadoc")
+    from("${buildDir}/dokka/javadoc")
 }
 
 publishing {

@@ -154,6 +154,12 @@ class KtJsInterfaceGenerator : CodeGenerator() {
     }
 
     private fun IdlModel.generatePackage(pkg: String, ktPkg: String, outPath: String) {
+        val interfaces = getInterfacesByPackage(pkg).filter { it.matchesPlatform("emscripten") }
+        val enums = getEnumsByPackage(pkg).filter { it.matchesPlatform("emscripten") }
+        if (interfaces.isEmpty() && enums.isEmpty()) {
+            return
+        }
+
         createOutFileWriter(outPath).use { w ->
             if (ktPkg.isNotEmpty()) {
                 w.writeHeader()
@@ -162,14 +168,14 @@ class KtJsInterfaceGenerator : CodeGenerator() {
 
                     package $ktPkg
                 """.trimIndentEmptyBlanks()).append("\n\n")
-                getInterfacesByPackage(pkg).filter { it.matchesPlatform("emscripten") }.forEach {
+                interfaces.forEach {
                     if (it.hasDecorator(IdlDecorator.JS_IMPLEMENTATION)) {
                         it.generateCallback(this, w)
                     } else {
                         it.generate(this, w)
                     }
                 }
-                getEnumsByPackage(pkg).filter { it.matchesPlatform("emscripten") }.forEach {
+                enums.forEach {
                     it.generate(w)
                 }
             }
