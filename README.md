@@ -39,7 +39,7 @@ webidl {
 
     generateJni {
         // required: where to generate the Java classes
-        javaClassesOutputDirectory = file("$projectDir/src/generated/")
+        javaClassesOutputDirectory = file("$projectDir/src/main/generated/")
         // required: where to generate the JNI C header file
         nativeGlueCodeOutputFile = file("path/to/native/glue_code.h")
 

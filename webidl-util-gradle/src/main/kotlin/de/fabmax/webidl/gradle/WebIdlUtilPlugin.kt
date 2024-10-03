@@ -25,37 +25,43 @@ class WebIdlUtilPlugin : Plugin<Project> {
             else -> throw IllegalStateException("Unsupported platform: $os")
         })
 
-        target.createGenerateJniBindingsTask(extension)
+        target.createGenerateJniJavaBindingsTask(extension)
+        target.createGenerateJniNativeBindingsTask(extension)
         target.createGenerateKotlinJsBindingsTask(extension)
         target.createGenerateCompactWebIdlTask(extension)
     }
 
-    private fun Project.createGenerateJniBindingsTask(extension: WebIdlUtilExtension) = task("generateJniBindings").apply {
+    private fun Project.createGenerateJniJavaBindingsTask(extension: WebIdlUtilExtension) = task("generateJniJavaBindings").apply {
         group = "webidl"
         doLast {
             val genJni = extension.getGenerateJniBindings()
-            val outputFileNative = genJni.nativeGlueCodeOutputFile.asFile.orNull
-            val outputDirJava = genJni.javaClassesOutputDirectory.asFile.orNull
+            val outputDirJava = genJni.javaClassesOutputDirectory.asFile.get()
             val modelPath = extension.modelPath.asFile.get()
             val model = WebIdlParser.parse(modelPath.path, extension.modelName.orNull)
 
-            outputDirJava?.let {
-                JniJavaGenerator().apply {
-                    outputDirectory = outputDirJava.path
-                    genJni.packagePrefix.orNull?.let { packagePrefix = it }
-                    genJni.onClassLoadStatement.orNull?.let { onClassLoad = it }
-                    genJni.nativeIncludeDir.asFile.orNull?.let { parseCommentsFromDirectories += it.path }
-                }.generate(model)
-            }
+            JniJavaGenerator().apply {
+                outputDirectory = outputDirJava.path
+                genJni.packagePrefix.orNull?.let { packagePrefix = it }
+                genJni.onClassLoadStatement.orNull?.let { onClassLoad = it }
+                genJni.nativeIncludeDir.asFile.orNull?.let { parseCommentsFromDirectories += it.path }
+            }.generate(model)
+        }
+    }
 
-            outputFileNative?.let {
-                JniNativeGenerator().apply {
-                    outputDirectory = outputFileNative.parent
-                    glueFileName = outputFileNative.name
-                    genJni.packagePrefix.orNull?.let { packagePrefix = it }
-                    genJni.nativePlatform.get().let { platform = it }
-                }.generate(model)
-            }
+    private fun Project.createGenerateJniNativeBindingsTask(extension: WebIdlUtilExtension) = task("generateJniNativeBindings").apply {
+        group = "webidl"
+        doLast {
+            val genJni = extension.getGenerateJniBindings()
+            val outputFileNative = genJni.nativeGlueCodeOutputFile.asFile.get()
+            val modelPath = extension.modelPath.asFile.get()
+            val model = WebIdlParser.parse(modelPath.path, extension.modelName.orNull)
+
+            JniNativeGenerator().apply {
+                outputDirectory = outputFileNative.parent
+                glueFileName = outputFileNative.name
+                genJni.packagePrefix.orNull?.let { packagePrefix = it }
+                genJni.nativePlatform.get().let { platform = it }
+            }.generate(model)
         }
     }
 
@@ -82,10 +88,10 @@ class WebIdlUtilPlugin : Plugin<Project> {
             val genWebIdl = extension.getGenerateCompactWebIdl()
             val outputPath = genWebIdl.outputFile.asFile.get()
             val modelPath = extension.modelPath.asFile.get()
-            val model = WebIdlParser.parse(modelPath.path, extension.modelName.orNull)
+            val model = WebIdlParser.parse(modelPath.path, extension.modelName.orNull, explodeOptionalFunctionParams = false)
 
             EmscriptenIdlGenerator().apply {
-                outputDirectory = outputPath.path
+                outputDirectory = outputPath.parent
                 outputIdlFileName = outputPath.name
             }.generate(model)
         }

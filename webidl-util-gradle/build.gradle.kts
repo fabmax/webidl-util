@@ -4,7 +4,7 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":webidl-util"))
+    api(project(":webidl-util"))
 }
 
 kotlin {
