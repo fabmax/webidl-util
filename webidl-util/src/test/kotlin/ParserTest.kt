@@ -5,7 +5,8 @@ import de.fabmax.webidl.model.IdlDecorator
 import de.fabmax.webidl.parser.ParserException
 import de.fabmax.webidl.parser.WebIdlParser
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ParserTest {
@@ -20,21 +21,21 @@ class ParserTest {
             parser.finish()
         }
 
-        Assert.assertTrue(model.interfaces.size == 4)
+        assertTrue(model.interfaces.size == 4)
 
-        Assert.assertEquals("AnInterface", model.interfaces[0].name)
-        Assert.assertTrue(model.interfaces[0].functions.size == 1)
-        Assert.assertEquals("aFunction", model.interfaces[0].functions[0].name)
-        Assert.assertTrue(model.interfaces[0].attributes.size == 2)
-        Assert.assertEquals("someAttribute", model.interfaces[0].attributes[0].name)
-        Assert.assertTrue("readOnlyAttribute", model.interfaces[0].attributes[1].isReadonly)
-        Assert.assertTrue(model.interfaces[0].hasDecorator(IdlDecorator.NO_DELETE))
-        Assert.assertEquals("someNamespace::", model.interfaces[0].getDecoratorValue("Prefix", ""))
+        assertEquals("AnInterface", model.interfaces[0].name)
+        assertTrue(model.interfaces[0].functions.size == 1)
+        assertEquals("aFunction", model.interfaces[0].functions[0].name)
+        assertTrue(model.interfaces[0].attributes.size == 2)
+        assertEquals("someAttribute", model.interfaces[0].attributes[0].name)
+        assertTrue("readOnlyAttribute", model.interfaces[0].attributes[1].isReadonly)
+        assertTrue(model.interfaces[0].hasDecorator(IdlDecorator.NO_DELETE))
+        assertEquals("someNamespace::", model.interfaces[0].getDecoratorValue("Prefix", ""))
 
-        Assert.assertEquals("someNamespaceWithSpace::", model.interfaces[1].getDecoratorValue("Prefix", ""))
+        assertEquals("someNamespaceWithSpace::", model.interfaces[1].getDecoratorValue("Prefix", ""))
 
-        Assert.assertEquals("JavaErrorCallback", model.interfaces[3].name)
-        Assert.assertEquals("ErrorCallback", model.interfaces[3].getDecoratorValue("JSImplementation", ""))
+        assertEquals("JavaErrorCallback", model.interfaces[3].name)
+        assertEquals("ErrorCallback", model.interfaces[3].getDecoratorValue("JSImplementation", ""))
     }
 
     @Test(expected = ParserException::class)

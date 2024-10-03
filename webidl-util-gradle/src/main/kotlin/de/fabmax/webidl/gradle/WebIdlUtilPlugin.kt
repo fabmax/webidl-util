@@ -2,6 +2,7 @@ package de.fabmax.webidl.gradle
 
 import de.fabmax.webidl.generator.jni.java.JniJavaGenerator
 import de.fabmax.webidl.generator.jni.nat.JniNativeGenerator
+import de.fabmax.webidl.generator.ktjs.EmscriptenIdlGenerator
 import de.fabmax.webidl.generator.ktjs.KtJsInterfaceGenerator
 import de.fabmax.webidl.parser.WebIdlParser
 import org.gradle.api.Action
@@ -26,6 +27,7 @@ class WebIdlUtilPlugin : Plugin<Project> {
 
         target.createGenerateJniBindingsTask(extension)
         target.createGenerateKotlinJsBindingsTask(extension)
+        target.createGenerateCompactWebIdlTask(extension)
     }
 
     private fun Project.createGenerateJniBindingsTask(extension: WebIdlUtilExtension) = task("generateJniBindings").apply {
@@ -73,6 +75,21 @@ class WebIdlUtilPlugin : Plugin<Project> {
             }.generate(model)
         }
     }
+
+    private fun Project.createGenerateCompactWebIdlTask(extension: WebIdlUtilExtension) = task("generateCompactWebIdl").apply {
+        group = "webidl"
+        doLast {
+            val genWebIdl = extension.getGenerateCompactWebIdl()
+            val outputPath = genWebIdl.outputFile.asFile.get()
+            val modelPath = extension.modelPath.asFile.get()
+            val model = WebIdlParser.parse(modelPath.path, extension.modelName.orNull)
+
+            EmscriptenIdlGenerator().apply {
+                outputDirectory = outputPath.path
+                outputIdlFileName = outputPath.name
+            }.generate(model)
+        }
+    }
 }
 
 abstract class WebIdlUtilExtension {
@@ -85,12 +102,19 @@ abstract class WebIdlUtilExtension {
     @Nested
     abstract fun getGenerateJniBindings(): GenerateJniBindings
 
+    @Nested
+    abstract fun getGenerateCompactWebIdl(): GenerateCompactWebIdl
+
     fun generateKotlinJsInterfaces(action: Action<GenerateKotlinJsBindings>) {
         action.execute(getGenerateKotlinJsBindings())
     }
 
-    fun generateJni(action: Action<GenerateKotlinJsBindings>) {
-        action.execute(getGenerateKotlinJsBindings())
+    fun generateJni(action: Action<GenerateJniBindings>) {
+        action.execute(getGenerateJniBindings())
+    }
+
+    fun generateCompactWebIdl(action: Action<GenerateCompactWebIdl>) {
+        action.execute(getGenerateCompactWebIdl())
     }
 }
 
@@ -108,4 +132,8 @@ interface GenerateJniBindings {
     val nativePlatform: Property<String>
     val nativeIncludeDir: RegularFileProperty
     val onClassLoadStatement: Property<String>
+}
+
+interface GenerateCompactWebIdl {
+    val outputFile: RegularFileProperty
 }
