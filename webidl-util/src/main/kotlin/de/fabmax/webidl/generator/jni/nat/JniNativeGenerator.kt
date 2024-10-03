@@ -12,12 +12,6 @@ class JniNativeGenerator : CodeGenerator() {
      */
     var platform = ""
 
-    val IdlModel.platformInterfaces: List<IdlInterface>
-        get() = interfaces.filter { it.matchesPlatform(platform) }
-
-    val IdlModel.platformEnums: List<IdlEnum>
-        get() = enums.filter { it.matchesPlatform(platform) }
-
     val IdlInterface.platformFunctions: List<IdlFunction>
         get() = functions.filter { it.matchesPlatform(platform) }
 

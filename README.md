@@ -14,25 +14,76 @@ The goals of this project are:
 
 The two generator targets are especially useful in the context of Kotlin multi-platform projects, which can then
 rely on the same library APIs for JVM and javascript platforms. However, the generated code can of course also
-be used in non-multiplatform projects. The JNI code can even be used in plain Java without any Kotlin.
+be used in non-multiplatform projects.
 
-Although this is still work in progress, I use this to generate JNI bindings for Nvidia PhysX:
+I use this to generate JNI bindings for Nvidia PhysX:
 [physx-jni](https://github.com/fabmax/physx-jni) with ~370 generated java classes and no manual tweaking.
-So it's arguably in a state where you could actually use it.
+So it's arguably in a state where you can actually use it :smile:
 
 ## How to use
-This library is published to maven central, so you can easily add it to your (gradle-)dependencies:
+This library comes in two flavors: A gradle plugin for easy buildscript integration as well as 
+a plane library, which can be used for advanced use-cases.
+
+### Gradle plugin
+Apply the gradle plugin to your project:
+```kotlin
+plugins {
+    id("de.fabmax.webidl-util") version "0.9.0"
+}
 ```
-dependencies {
-    implementation("de.fabmax:webidl-util:0.8.2")
+Then configure it to generate JNI bindings:
+```kotlin
+webidl {
+    modelPath = "path/to/webidlmodel.idl"   // required
+    modelName = "MyWebIdl"                  // optional model name
+
+    generateJni {
+        // required: where to generate the Java classes
+        javaClassesOutputDirectory = file("$projectDir/src/main/generated/")
+        // required: where to generate the JNI C header file
+        nativeGlueCodeOutputFile = file("path/to/native/glue_code.h")
+
+        // optional package prefix for the generated Java classes
+        packagePrefix = "com.example"
+        // optional directory with C++ header files to parse documentation strings from
+        nativeIncludeDir = file("${projectDir}/src/jsMain/kotlin/physx")
+        // optional statement to execute in each generated class' static block
+        //  this is particularly useful to call loader code, which loads the corresponding native lib
+        onClassLoadStatement = "System.out.println(\"class loaded\")"
+    }
 }
 ```
 
-As this is a code generator, it makes sense to integrate this library into a buildscript. Although there is no
-dedicated gradle plugin, it is easy enough to integrate this into a gradle task. You can check out my
-[physx-jni](https://github.com/fabmax/physx-jni) project to see this in action (take a look at the buildSrc folder).
+Alternatively, you can generate Kotlin/JS bindings for an emscripten/WASM library compiled with the given
+WebIDL definition:
+```kotlin
+webidl {
+    modelPath = "path/to/webidlmodel.idl"   // required
+    modelName = "MyWebIdl"                  // optional model name
 
-Alternatively you can write a small `main()` method which configures and runs the generator:
+    generateKotlinJsInterfaces {
+        // required: where to generate the Kotlin interfaces
+        outputDirectory = file("${projectDir}/src/jsMain/kotlin")
+        // required: name of the JS module
+        moduleName = "physx-js-webidl"
+        // required: name of the JS Promise providing the loaded module
+        modulePromiseName = "PhysX"
+        // optional package prefix for the generated Kotlin interfaces
+        packagePrefix = "com.example"
+    }
+}
+```
+
+### Plain library usage
+The library is published on maven central:
+
+```
+dependencies {
+    implementation("de.fabmax:webidl-util:0.9.0")
+}
+```
+
+Here's a small `main()` method which configures and runs the generator:
 
 ```kotlin
 fun main() {
@@ -61,7 +112,7 @@ fun main() {
 ```
 
 ## Limitations
-This is a work-in-progress project, and I implement features as I need them, so there are a limitations:
+This is a work-in-progress project, and I implement features as I need them, so there are a few limitations:
 
 ### WebIDL Parser
 - The parser is quite robust and provides somewhat useful messages on syntax errors, however there might be edge

@@ -52,6 +52,22 @@ class WebIdlParser(
     }
 
     companion object {
+        fun parse(
+            path: String,
+            modelName: String? = null,
+            explodeOptionalFunctionParams: Boolean = true
+        ): IdlModel {
+            val file = File(path)
+            if (!file.exists()) {
+                throw IOException("Given path does not exist")
+            }
+            return if (file.isDirectory) {
+                parseDirectory(path, modelName, explodeOptionalFunctionParams)
+            } else {
+                parseSingleFile(path, modelName, explodeOptionalFunctionParams)
+            }
+        }
+
         fun parseDirectory(
             path: String,
             modelName: String? = null,
