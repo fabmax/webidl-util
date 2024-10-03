@@ -24,7 +24,7 @@ So it's arguably in a state where you could actually use it.
 This library is published to maven central, so you can easily add it to your (gradle-)dependencies:
 ```
 dependencies {
-    implementation("de.fabmax:webidl-util:0.8.2")
+    implementation("de.fabmax:webidl-util:0.8.5")
 }
 ```
 
@@ -61,7 +61,7 @@ fun main() {
 ```
 
 ## Limitations
-This is a work-in-progress project, and I implement features as I need them, so there are a limitations:
+This is a work-in-progress project, and I implement features as I need them, so there are a few limitations:
 
 ### WebIDL Parser
 - The parser is quite robust and provides somewhat useful messages on syntax errors, however there might be edge

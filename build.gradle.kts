@@ -2,8 +2,8 @@ import java.io.FileInputStream
 import java.util.*
 
 plugins {
-    kotlin("jvm") version "2.0.0"
-    id("org.jetbrains.dokka") version "1.9.20"
+    alias(libs.plugins.kotlin)
+    alias(libs.plugins.dokka)
     `maven-publish`
     signing
 }
@@ -16,9 +16,8 @@ repositories {
 }
 
 dependencies {
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
-
-    testImplementation("junit:junit:4.13.1")
+    api(libs.kotlin.coroutines)
+    testImplementation(libs.kotlin.test.junit)
 }
 
 kotlin {
@@ -35,7 +34,7 @@ tasks.register<Jar>("javadocJar") {
     dependsOn("dokkaJavadoc")
     group = "documentation"
     archiveClassifier.set("javadoc")
-    from("$buildDir/dokka/javadoc")
+    from("${layout.buildDirectory}/dokka/javadoc")
 }
 
 publishing {
