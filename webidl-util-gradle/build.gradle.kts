@@ -20,6 +20,7 @@ gradlePlugin {
             id = "de.fabmax.webidl-util"
             displayName = "WebIDL Code Generation Gradle Plugin"
             description = "Generates JNI and Kotlin/JS bindings from an emscripten/WebIDL model"
+            tags = listOf("webidl", "code-generation", "jni")
             implementationClass = "de.fabmax.webidl.gradle.WebIdlUtilPlugin"
         }
     }
