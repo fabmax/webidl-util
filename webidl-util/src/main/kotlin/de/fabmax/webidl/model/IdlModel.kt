@@ -4,15 +4,18 @@ import java.util.*
 
 class IdlModel private constructor(builder: Builder) : IdlElement(builder) {
     val interfaces: List<IdlInterface>
+    val dictionaries: List<IdlDictionary>
     val enums: List<IdlEnum>
 
     val interfacesByName: Map<String, IdlInterface>
 
     init {
         interfaces = List(builder.interfaces.size) { builder.interfaces[it].build() }
+        dictionaries = List(builder.dictionaries.size) { builder.dictionaries[it].build() }
         interfacesByName = interfaces.associateBy { it.name }
         enums = List(builder.enums.size) { builder.enums[it].build() }
 
+        dictionaries.forEach { it.finishModel(this) }
         interfaces.forEach { it.finishModel(this) }
         enums.forEach { it.finishModel(this) }
     }
@@ -57,10 +60,12 @@ class IdlModel private constructor(builder: Builder) : IdlElement(builder) {
 
     class Builder : IdlElement.Builder("root") {
         val interfaces = mutableListOf<IdlInterface.Builder>()
+        val dictionaries = mutableListOf<IdlDictionary.Builder>()
         val implements = mutableListOf<Pair<String, String>>()
         val enums = mutableListOf<IdlEnum.Builder>()
 
         fun addInterface(idlInterface: IdlInterface.Builder) { interfaces += idlInterface }
+        fun addDictionary(idlDictionary: IdlDictionary.Builder) { dictionaries += idlDictionary }
         fun addImplements(concreteInterface: String, superInterface: String) { implements += concreteInterface to superInterface }
         fun addEnum(idlEnum: IdlEnum.Builder) { enums += idlEnum }
 

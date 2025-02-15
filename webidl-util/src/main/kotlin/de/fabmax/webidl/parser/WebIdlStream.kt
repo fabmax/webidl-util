@@ -47,6 +47,11 @@ class WebIdlStream {
         return buffer.startsWith(prefix)
     }
 
+    suspend fun endWith(prefix: String): Boolean {
+        readCharacters(prefix.length)
+        return buffer.endsWith(prefix)
+    }
+
     suspend fun pollUntilPattern(searchPattern: String, abortPattern: String? = null) =
         pollUntilPattern(Regex(searchPattern), abortPattern?.let { Regex(it) })
 

@@ -14,7 +14,7 @@ class IdlInterface(builder: Builder) : IdlDecoratedElement(builder) {
 
     fun finishModel(parentModel: IdlModel) {
         this.parentModel = parentModel
-        attributes.forEach { it.finishModel(this) }
+        attributes.forEach { it.finishModel( parentInterface = this) }
         functions.forEach { it.finishModel(this) }
     }
 

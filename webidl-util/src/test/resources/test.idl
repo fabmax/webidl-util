@@ -33,3 +33,9 @@ interface JavaErrorCallback {
     void reportError(ErrorCode code, DOMString message);
     AnotherInterface someOtherMethod(AnInterface anInterface);
 };
+
+dictionary AnDictionary {
+    unsigned long long someMember;
+    required unsigned long long requiredMember;
+    USVString someMemberWithDefaultValue = "my string";
+};
