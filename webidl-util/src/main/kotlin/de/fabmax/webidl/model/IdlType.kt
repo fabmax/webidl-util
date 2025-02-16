@@ -3,7 +3,7 @@ package de.fabmax.webidl.model
 data class IdlType(val typeName: String, val isArray: Boolean) {
 
     val isVoid = typeName == "void"
-    val isString = typeName == "DOMString"
+    val isString = typeName == "DOMString" || typeName == "USVString"
     val isVoidPtr = typeName == "VoidPtr"
     val isAny = typeName == "any"
 
@@ -26,7 +26,7 @@ data class IdlType(val typeName: String, val isArray: Boolean) {
     }
 
     companion object {
-        private val basicTypes = setOf("boolean", "float", "double", "byte", "DOMString", "octet",
+        private val basicTypes = setOf("boolean", "float", "double", "byte", "DOMString", "USVString", "octet",
             "short", "long", "long long", "unsigned short", "unsigned long", "unsigned long long", "void",
             "any", "VoidPtr")
 

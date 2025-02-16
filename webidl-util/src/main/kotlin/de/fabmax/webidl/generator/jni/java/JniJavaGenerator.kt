@@ -278,8 +278,7 @@ class JniJavaGenerator : CodeGenerator() {
                         "boolean" -> "false"
                         "float" -> "0.0f"
                         "double" -> "0.0"
-                        "DOMString" -> "\"\""
-                        else -> "0"
+                        else -> if (func.returnType.isString) "\"\"" else "0"
                     }
                     "\n${indent(24)}return $returnVal;\n${indent(20)}"
                 } else {
@@ -647,6 +646,7 @@ class JniJavaGenerator : CodeGenerator() {
             "double" to "double",
             "byte" to "byte",
             "DOMString" to "String",
+            "USVString" to "String",
             "octet" to "byte",
             "short" to "short",
             "long" to "int",

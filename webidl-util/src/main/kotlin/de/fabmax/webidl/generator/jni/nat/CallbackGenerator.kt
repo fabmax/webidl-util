@@ -127,7 +127,6 @@ internal class CallbackGenerator(val model: IdlModel, val platform: String) {
                 "float" -> "CallFloatMethod"
                 "double" -> "CallDoubleMethod"
                 "byte" -> "CallByteMethod"
-                "DOMString" -> "CallObjectMethod"
                 "octet" -> "CallByteMethod"
                 "short" -> "CallShortMethod"
                 "long" -> "CallIntMethod"
@@ -136,7 +135,7 @@ internal class CallbackGenerator(val model: IdlModel, val platform: String) {
                 "unsigned long" -> "CallIntMethod"
                 "unsigned long long" -> "CallLongMethod"
                 "void" -> "CallVoidMethod"
-                else -> "CallLongMethod"    // any, VoidPtr, NativeObject
+                else -> if(cbFunc.returnType.isString) "CallObjectMethod" else "CallLongMethod"    // any, VoidPtr, NativeObject
             }
 
             var call = "$env->$callTypedMethod(javaGlobalRef, ${cbFunc.name}MethodId$callParams)"

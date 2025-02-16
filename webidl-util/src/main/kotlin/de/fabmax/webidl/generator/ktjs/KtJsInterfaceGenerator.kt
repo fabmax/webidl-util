@@ -453,6 +453,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             "double" to "Double",
             "byte" to "Byte",
             "DOMString" to "String",
+            "USVString" to "String",
             "octet" to "Byte",
             "short" to "Short",
             "long" to "Int",
