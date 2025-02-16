@@ -62,16 +62,26 @@ class IdlModel private constructor(builder: Builder) : IdlElement(builder) {
         val interfaces = mutableListOf<IdlInterface.Builder>()
         val dictionaries = mutableListOf<IdlDictionary.Builder>()
         val implements = mutableListOf<Pair<String, String>>()
+        val includes = mutableListOf<Pair<String, String>>()
         val enums = mutableListOf<IdlEnum.Builder>()
 
         fun addInterface(idlInterface: IdlInterface.Builder) { interfaces += idlInterface }
         fun addDictionary(idlDictionary: IdlDictionary.Builder) { dictionaries += idlDictionary }
         fun addImplements(concreteInterface: String, superInterface: String) { implements += concreteInterface to superInterface }
+        fun addIncludes(concreteInterface: String, superInterface: String) { includes += concreteInterface to superInterface }
         fun addEnum(idlEnum: IdlEnum.Builder) { enums += idlEnum }
 
         fun build(): IdlModel {
             implements.forEach { (ci, si) ->
                 val i = interfaces.find { it.name == ci } ?: throw NoSuchElementException("interface \"$ci\" not found for implements statement: $ci implements $si;")
+                val superInterface = interfaces.find { it.name == si } ?: throw NoSuchElementException("interface \"$si\" not found for implements statement: $ci implements $si;")
+                if (superInterface.isMixin) error("implements statement is only allowed for non-mixin interfaces: $ci implements $si;")
+                i.superInterfaces += si
+            }
+            includes.forEach { (ci, si) ->
+                val i = interfaces.find { it.name == ci } ?: throw NoSuchElementException("interface \"$ci\" not found for includes statement: $ci includes $si;")
+                val superInterface = interfaces.find { it.name == si } ?: throw NoSuchElementException("interface \"$si\" not found for includes statement: $ci includes $si;")
+                if (superInterface.isMixin.not()) error("include statement is only allowed for mixin interfaces: $ci includes $si;")
                 i.superInterfaces += si
             }
             return IdlModel(this)
