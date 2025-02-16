@@ -21,7 +21,15 @@ class ParserTest {
             parser.finish()
         }
 
+        assertTrue(model.dictionaries.size == 1)
         assertTrue(model.interfaces.size == 4)
+
+
+        assertEquals("AnDictionary", model.dictionaries[0].name)
+        assertEquals("someMember", model.dictionaries[0].members[0].name)
+        assertTrue("requiredMember", model.dictionaries[0].members[1].isRequired)
+        assertEquals("someMemberWithDefaultValue", model.dictionaries[0].members[2].name)
+        assertEquals("\"my string\"", model.dictionaries[0].members[2].defaultValue)
 
         assertEquals("AnInterface", model.interfaces[0].name)
         assertTrue(model.interfaces[0].functions.size == 1)

@@ -32,4 +32,5 @@ class IdlAttribute private constructor(builder: Builder) : IdlDecoratedElement(b
 
         fun build() = IdlAttribute(this)
     }
+
 }

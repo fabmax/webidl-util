@@ -42,8 +42,14 @@ class IdlInterface(builder: Builder) : IdlDecoratedElement(builder) {
         val superInterfaces = mutableSetOf<String>()
         var sourcePackage = ""
 
-        fun addAttribute(attribute: IdlAttribute.Builder) { attributes += attribute }
-        fun addFunction(function: IdlFunction.Builder) { functions += function }
+        fun addAttribute(attribute: IdlAttribute.Builder) {
+            attributes += attribute
+        }
+
+        fun addFunction(function: IdlFunction.Builder) {
+            functions += function
+        }
+
         fun build() = IdlInterface(this)
     }
 }

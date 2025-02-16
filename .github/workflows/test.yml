@@ -1,0 +1,47 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, 'release/**', 'feature/**', 'fix/**'  ]
+    paths-ignore:
+      - '*.md'
+      - '*.yml'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main, 'release/**', 'feature/**', 'fix/**'  ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        # add macos-latest when upgrading to JDK 17
+        os: [ ubuntu-latest, windows-latest ]
+    runs-on: ${{ matrix.os }}
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 8
+          cache: 'gradle'
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts') }}
+          restore-keys: ${{ runner.os }}-gradle
+      - name: assemble
+        run: ./gradlew assemble
+      - name: build
+        run: ./gradlew build
+      - name: check
+        run: ./gradlew check
