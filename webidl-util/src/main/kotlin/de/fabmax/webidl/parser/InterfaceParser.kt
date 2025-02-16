@@ -9,10 +9,12 @@ class InterfaceParser(parserState: WebIdlParser.ParserState) : ElementParser(par
 
     override suspend fun parse(): String {
         popToken("interface")
+        val isMixin = popIfPresent("mixin")
 
         val interfaceName = popUntilPattern("\\{") ?: parserException("Failed parsing interface name")
         builder = IdlInterface.Builder(interfaceName.first)
         builder.sourcePackage = parserState.sourcePackage
+        builder.isMixin = isMixin
         parserState.popDecorators(builder)
         parserState.parentParser<RootParser>().builder.addInterface(builder)
 

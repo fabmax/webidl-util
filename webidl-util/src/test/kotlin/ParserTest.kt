@@ -22,7 +22,7 @@ class ParserTest {
         }
 
         assertTrue(model.dictionaries.size == 1)
-        assertTrue(model.interfaces.size == 4)
+        assertTrue(model.interfaces.size == 5)
 
 
         assertEquals("AnDictionary", model.dictionaries[0].name)
@@ -31,19 +31,29 @@ class ParserTest {
         assertEquals("someMemberWithDefaultValue", model.dictionaries[0].members[2].name)
         assertEquals("\"my string\"", model.dictionaries[0].members[2].defaultValue)
 
-        assertEquals("AnInterface", model.interfaces[0].name)
-        assertTrue(model.interfaces[0].functions.size == 1)
-        assertEquals("aFunction", model.interfaces[0].functions[0].name)
-        assertTrue(model.interfaces[0].attributes.size == 2)
-        assertEquals("someAttribute", model.interfaces[0].attributes[0].name)
-        assertTrue("readOnlyAttribute", model.interfaces[0].attributes[1].isReadonly)
-        assertTrue(model.interfaces[0].hasDecorator(IdlDecorator.NO_DELETE))
-        assertEquals("someNamespace::", model.interfaces[0].getDecoratorValue("Prefix", ""))
+        val objectBaseIndex = 0
+        assertEquals("ObjectBase", model.interfaces[objectBaseIndex].name)
+        assertEquals("label", model.interfaces[objectBaseIndex].attributes[0].name)
+        assertTrue(model.interfaces[objectBaseIndex].isMixin)
 
-        assertEquals("someNamespaceWithSpace::", model.interfaces[1].getDecoratorValue("Prefix", ""))
+        val anInterfaceIndex = 1
+        assertEquals("AnInterface", model.interfaces[anInterfaceIndex].name)
+        assertTrue(model.interfaces[anInterfaceIndex].functions.size == 1)
+        assertEquals("aFunction", model.interfaces[anInterfaceIndex].functions[0].name)
+        assertTrue(model.interfaces[anInterfaceIndex].attributes.size == 2)
+        assertEquals("someAttribute", model.interfaces[anInterfaceIndex].attributes[0].name)
+        assertTrue("readOnlyAttribute", model.interfaces[anInterfaceIndex].attributes[1].isReadonly)
+        assertTrue(model.interfaces[anInterfaceIndex].hasDecorator(IdlDecorator.NO_DELETE))
+        assertEquals("someNamespace::", model.interfaces[anInterfaceIndex].getDecoratorValue("Prefix", ""))
 
-        assertEquals("JavaErrorCallback", model.interfaces[3].name)
-        assertEquals("ErrorCallback", model.interfaces[3].getDecoratorValue("JSImplementation", ""))
+        val anotherInterfaceIndex = 2
+        assertTrue(model.interfaces[anotherInterfaceIndex].superInterfaces.contains(model.interfaces[objectBaseIndex].name))
+        assertEquals("someNamespaceWithSpace::", model.interfaces[anotherInterfaceIndex].getDecoratorValue("Prefix", ""))
+
+        val javaErrorCallbackIndex = 4
+        assertEquals("JavaErrorCallback", model.interfaces[javaErrorCallbackIndex].name)
+        assertEquals("ErrorCallback", model.interfaces[javaErrorCallbackIndex].getDecoratorValue("JSImplementation", ""))
+
     }
 
     @Test(expected = ParserException::class)

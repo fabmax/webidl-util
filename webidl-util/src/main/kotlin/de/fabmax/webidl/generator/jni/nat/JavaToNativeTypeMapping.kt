@@ -48,7 +48,7 @@ internal class NativeType(model: IdlModel, val idlType: IdlType, val isValue: Bo
     fun jniType(): String {
         return when {
             isPrimitive -> jniTypeName
-            idlType.typeName == "DOMString" -> "jstring"
+            idlType.isString -> "jstring"
             idlType.typeName == "VoidPtr" -> "jlong"
             idlType.typeName == "any" -> "jlong"
             // enums are integer constants
@@ -67,7 +67,7 @@ internal class NativeType(model: IdlModel, val idlType: IdlType, val isValue: Bo
         }
         return when {
             isPrimitive -> idlPrimitiveTypeMapNative[idlType.typeName]!!
-            idlType.typeName == "DOMString" -> "const char*"
+            idlType.isString -> "const char*"
             idlType.typeName == "VoidPtr" -> "void*"
             idlType.typeName == "any" -> "void*"
             // enums are integer constants
@@ -105,7 +105,7 @@ internal class NativeType(model: IdlModel, val idlType: IdlType, val isValue: Bo
             // value is an enum which is casted into an int
             isEnum -> "(jint) $value"
 
-            idlType.typeName == "DOMString" -> "${JniNativeGenerator.NativeFuncRenderer.ENV}->NewStringUTF($value)"
+            idlType.isString -> "${JniNativeGenerator.NativeFuncRenderer.ENV}->NewStringUTF($value)"
 
             // objects are returned as a pointer insider a jlong
             isValue || isRef -> "(jlong) &$value"
@@ -197,6 +197,7 @@ internal object JavaTypeSignature {
                 "double" -> "D"
                 "byte" -> "B"
                 "DOMString" -> if (isFunctionName) "Ljava_lang_String_2" else "Ljava/lang/String;"
+                "USVString" -> if (isFunctionName) "Ljava_lang_String_2" else "Ljava/lang/String;"
                 "octet" -> "B"
                 "short" -> "S"
                 "long" -> "I"

@@ -6,6 +6,7 @@ class IdlInterface(builder: Builder) : IdlDecoratedElement(builder) {
     val functionsByName: Map<String, IdlFunction>
     val superInterfaces = builder.superInterfaces.toList()
     val sourcePackage = builder.sourcePackage
+    val isMixin = builder.isMixin
 
     init {
         functions = builder.functions.flatMap { it.build() }
@@ -41,6 +42,7 @@ class IdlInterface(builder: Builder) : IdlDecoratedElement(builder) {
         val functions = mutableListOf<IdlFunction.Builder>()
         val superInterfaces = mutableSetOf<String>()
         var sourcePackage = ""
+        var isMixin = false
 
         fun addAttribute(attribute: IdlAttribute.Builder) {
             attributes += attribute

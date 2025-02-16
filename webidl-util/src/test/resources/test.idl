@@ -1,3 +1,8 @@
+
+interface mixin ObjectBase {
+    attribute USVString label;
+};
+
 [Prefix="someNamespace::", NoDelete]
 interface AnInterface {
     void aFunction(long param1, optional VoidPtr param2);
@@ -14,6 +19,7 @@ interface AnotherInterface {
     [Value] AnInterface overloadedFunction([Const, Ref] AnInterface param1, long secondParam);
 };
 AnotherInterface implements AnInterface;
+AnotherInterface includes ObjectBase;
 
 [Prefix="someNamespace::"]
 interface ErrorCallback {
