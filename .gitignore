@@ -3,6 +3,3 @@
 /build
 /test_output
 /publishingCredentials.properties
-/webidl-util/build
-/webidl-util-gradle/build
-/webidl-util/test_output
