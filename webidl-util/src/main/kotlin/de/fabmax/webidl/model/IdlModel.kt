@@ -81,7 +81,7 @@ class IdlModel private constructor(builder: Builder) : IdlElement(builder) {
             includes.forEach { (ci, si) ->
                 val i = interfaces.find { it.name == ci } ?: throw NoSuchElementException("interface \"$ci\" not found for includes statement: $ci includes $si;")
                 val superInterface = interfaces.find { it.name == si } ?: throw NoSuchElementException("interface \"$si\" not found for includes statement: $ci includes $si;")
-                if (superInterface.isMixin.not()) error("include statement is only allowed for mixin interfaces: $ci includes $si;")
+                if (superInterface.isMixin.not()) error("includes statement is only allowed for mixin interfaces: $ci includes $si;")
                 i.superInterfaces += si
             }
             return IdlModel(this)
