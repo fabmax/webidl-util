@@ -129,7 +129,7 @@ class WebIdlStream {
             typeName = typeName.substring(0, typeName.length - 2)
         }
 
-        if ( IdlType.parameterizedTypes.contains(typeName)) {
+        if (IdlType.parameterizedTypes.contains(typeName)) {
             whileWithMaxTry( { typeName.endsWith("<").not() }, 100)  {
                 typeName += popUntilWhitespaceOrEnd(parser)
             }
@@ -139,9 +139,7 @@ class WebIdlStream {
             whileWithMaxTry( { typeName.endsWith(">").not() }, 100)  {
                 typeName += popUntilWhitespaceOrEnd(parser)
             }
-        }
 
-        if (typeName.contains("<") && typeName.endsWith(">")) {
             val typeParams = typeName.substring(typeName.indexOf("<") + 1, typeName.lastIndexOf(">"))
             typeName = typeName.substring(0, typeName.indexOf("<"))
             return IdlType(typeName, isArray, typeParams)
