@@ -159,13 +159,13 @@ class WebIdlStream {
     }
 }
 
-private suspend fun whileWithMaxTry(acceptor: () -> Boolean, index: Int, runnable: suspend () -> Unit) {
+private suspend fun whileWithMaxTry(shouldContinue: () -> Boolean, maxAttempts: Int, task: suspend () -> Unit) {
     var attempts = 0
-    while (acceptor() && attempts < index) {
-        runnable()
+    while (shouldContinue() && attempts < maxAttempts) {
+        task()
         attempts++
     }
-    if (acceptor() && attempts >= index) {
-        throw IllegalStateException("Maximum attempts ($index) reached while executing runnable.")
+    if (shouldContinue() && attempts >= maxAttempts) {
+        throw IllegalStateException("Maximum attempts ($maxAttempts) reached while executing runnable.")
     }
 }
