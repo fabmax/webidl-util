@@ -9,8 +9,8 @@ class IdlAttribute private constructor(builder: Builder) : IdlDecoratedElement(b
         private set
 
     fun finishModel(parentInterface: IdlInterface) {
-        this.parentInterface = parentInterface
         this.parentModel = parentInterface.parentModel
+        this.parentInterface = parentInterface
     }
 
     override fun toString(indent: String): String {
