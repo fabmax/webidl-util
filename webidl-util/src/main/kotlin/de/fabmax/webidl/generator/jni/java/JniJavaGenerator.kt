@@ -211,7 +211,10 @@ class JniJavaGenerator : CodeGenerator() {
                 }
             }
 
-            imports.forEach {
+            imports
+                // TODO: support it
+                .filter { IdlType.parameterizedTypes.contains(it).not() }
+                .forEach {
                 javaClass.imports += typeMap[it] ?: throw IllegalStateException("Unknown idl type: $it")
             }
         }
