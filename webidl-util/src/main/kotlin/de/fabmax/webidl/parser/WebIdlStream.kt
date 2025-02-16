@@ -128,14 +128,44 @@ class WebIdlStream {
             isArray = true
             typeName = typeName.substring(0, typeName.length - 2)
         }
+
+        if ( IdlType.parameterizedTypes.contains(typeName)) {
+            whileWithMaxTry( { typeName.endsWith("<").not() }, 100)  {
+                typeName += popUntilWhitespaceOrEnd(parser)
+            }
+        }
+
+        if (typeName.contains("<")) {
+            whileWithMaxTry( { typeName.endsWith(">").not() }, 100)  {
+                typeName += popUntilWhitespaceOrEnd(parser)
+            }
+        }
+
+        if (typeName.contains("<") && typeName.endsWith(">")) {
+            val typeParams = typeName.substring(typeName.indexOf("<") + 1, typeName.lastIndexOf(">"))
+            typeName = typeName.substring(0, typeName.indexOf("<"))
+            return IdlType(typeName, isArray, typeParams)
+        }
+
         val type = IdlType(typeName, isArray)
         if (!type.isValid()) {
             parser.parserException("Invalid Type: \"$type\"")
         }
         return type
     }
-
+    
     companion object {
         private val whitespaceRegex = Regex("\\s+")
+    }
+}
+
+private suspend fun whileWithMaxTry(acceptor: () -> Boolean, index: Int, runnable: suspend () -> Unit) {
+    var attempts = 0
+    while (acceptor() && attempts < index) {
+        runnable()
+        attempts++
+    }
+    if (acceptor() && attempts >= index) {
+        throw IllegalStateException("Maximum attempts ($index) reached while executing runnable.")
     }
 }
