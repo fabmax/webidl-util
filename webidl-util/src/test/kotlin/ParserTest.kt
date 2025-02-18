@@ -55,7 +55,7 @@ class ParserTest {
             Triple("Promise", listOf("any"), "somePromiseWithExtraSpace")
         ).forEachIndexed { index, (type, parameterType, name) ->
             assertEquals(type, model.interfaces[anInterfaceIndex].attributes[index].type.typeName)
-            assertEquals(parameterType, model.interfaces[anInterfaceIndex].attributes[index].type.parameterType)
+            assertEquals(parameterType, model.interfaces[anInterfaceIndex].attributes[index].type.parameterTypes)
             assertEquals(name, model.interfaces[anInterfaceIndex].attributes[index].name)
         }
 
