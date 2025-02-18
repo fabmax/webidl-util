@@ -51,7 +51,6 @@ dictionary AnDictionary {
     USVString someMemberWithDefaultValue = "my string";
 };
 
-
 interface SetLikeInterface {
     readonly setlike<DOMString>;
 };

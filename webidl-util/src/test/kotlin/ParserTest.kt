@@ -87,6 +87,12 @@ class ParserTest {
         WebIdlParser.parseFromInputStream(inStream)
     }
 
+    @Test(expected = ParserException::class)
+    fun parserTestBadSetLike() {
+        val inStream = ParserTest::class.java.classLoader.getResourceAsStream("bad-setlike.idl")!!
+        WebIdlParser.parseFromInputStream(inStream)
+    }
+
     @Test
     fun generatorJsTest() {
         val inStream = ParserTest::class.java.classLoader.getResourceAsStream("test.idl")!!

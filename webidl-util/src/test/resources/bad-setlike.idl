@@ -1,0 +1,5 @@
+
+interface SetLikeInterface {
+    readonly setlike<DOMString>;
+    void JavaErrorCallback();
+};

@@ -1,17 +1,21 @@
 package de.fabmax.webidl.model
 
+import de.fabmax.webidl.parser.ParserException
+
 class IdlInterface(builder: Builder) : IdlDecoratedElement(builder) {
     val attributes = List(builder.attributes.size) { builder.attributes[it].build() }
-    val functions: List<IdlFunction>
-    val functionsByName: Map<String, IdlFunction>
+    val functions: List<IdlFunction> = builder.functions.flatMap { it.build() }
+    val functionsByName: Map<String, IdlFunction> = functions.associateBy { it.name }
     val superInterfaces = builder.superInterfaces.toList()
     val sourcePackage = builder.sourcePackage
     val isMixin = builder.isMixin
     val setLike = builder.setLike?.build()
 
     init {
-        functions = builder.functions.flatMap { it.build() }
-        functionsByName = functions.associateBy { it.name }
+        if (setLike != null) {
+            if (functions.isNotEmpty()) throw ParserException("functions and setlike are mutually exclusive")
+            if (attributes.isNotEmpty()) throw ParserException("attributes and setlike are mutually exclusive")
+        }
     }
 
     fun finishModel(parentModel: IdlModel) {
