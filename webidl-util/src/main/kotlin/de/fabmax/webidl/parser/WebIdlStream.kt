@@ -47,11 +47,6 @@ class WebIdlStream {
         return buffer.startsWith(prefix)
     }
 
-    suspend fun endWith(prefix: String): Boolean {
-        readCharacters(prefix.length)
-        return buffer.endsWith(prefix)
-    }
-
     suspend fun pollUntilPattern(searchPattern: String, abortPattern: String? = null) =
         pollUntilPattern(Regex(searchPattern), abortPattern?.let { Regex(it) })
 
@@ -128,14 +123,42 @@ class WebIdlStream {
             isArray = true
             typeName = typeName.substring(0, typeName.length - 2)
         }
+
+        if (IdlType.parameterizedTypes.contains(typeName)) {
+            whileWithMaxTry( { typeName.endsWith("<").not() }, 100)  {
+                typeName += popUntilWhitespaceOrEnd(parser)
+            }
+        }
+
+        if (typeName.contains("<")) {
+            whileWithMaxTry( { typeName.endsWith(">").not() }, 100)  {
+                typeName += popUntilWhitespaceOrEnd(parser)
+            }
+
+            val typeParams = typeName.substringAfter('<').substringBeforeLast('>')
+            typeName = typeName.substringBefore("<")
+            return IdlType(typeName, isArray, typeParams.split(',').map { it.trim() })
+        }
+
         val type = IdlType(typeName, isArray)
         if (!type.isValid()) {
             parser.parserException("Invalid Type: \"$type\"")
         }
         return type
     }
-
+    
     companion object {
         private val whitespaceRegex = Regex("\\s+")
+    }
+}
+
+private suspend fun whileWithMaxTry(shouldContinue: () -> Boolean, maxAttempts: Int, task: suspend () -> Unit) {
+    var attempts = 0
+    while (shouldContinue() && attempts < maxAttempts) {
+        task()
+        attempts++
+    }
+    if (shouldContinue() && attempts >= maxAttempts) {
+        throw IllegalStateException("Maximum attempts ($maxAttempts) reached while executing runnable.")
     }
 }

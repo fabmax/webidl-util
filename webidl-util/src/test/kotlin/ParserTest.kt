@@ -40,11 +40,25 @@ class ParserTest {
         assertEquals("AnInterface", model.interfaces[anInterfaceIndex].name)
         assertTrue(model.interfaces[anInterfaceIndex].functions.size == 1)
         assertEquals("aFunction", model.interfaces[anInterfaceIndex].functions[0].name)
-        assertTrue(model.interfaces[anInterfaceIndex].attributes.size == 2)
-        assertEquals("someAttribute", model.interfaces[anInterfaceIndex].attributes[0].name)
+        assertTrue(model.interfaces[anInterfaceIndex].attributes.size == 7)
         assertTrue("readOnlyAttribute", model.interfaces[anInterfaceIndex].attributes[1].isReadonly)
         assertTrue(model.interfaces[anInterfaceIndex].hasDecorator(IdlDecorator.NO_DELETE))
         assertEquals("someNamespace::", model.interfaces[anInterfaceIndex].getDecoratorValue("Prefix", ""))
+
+        listOf(
+            Triple("unsigned long long", null, "someAttribute"),
+            Triple("unsigned long long", null, "readOnlyAttribute"),
+            Triple("sequence", listOf("any"), "someSequence"),
+            Triple("record", listOf("any", "any"), "someRecord"),
+            Triple("FrozenArray", listOf("any"), "someFrozenArray"),
+            Triple("Promise", listOf("any"), "somePromise"),
+            Triple("Promise", listOf("any"), "somePromiseWithExtraSpace")
+        ).forEachIndexed { index, (type, parameterType, name) ->
+            assertEquals(type, model.interfaces[anInterfaceIndex].attributes[index].type.typeName)
+            assertEquals(parameterType, model.interfaces[anInterfaceIndex].attributes[index].type.parameterTypes)
+            assertEquals(name, model.interfaces[anInterfaceIndex].attributes[index].name)
+        }
+
 
         val anotherInterfaceIndex = 2
         assertTrue(model.interfaces[anotherInterfaceIndex].superInterfaces.contains(model.interfaces[objectBaseIndex].name))

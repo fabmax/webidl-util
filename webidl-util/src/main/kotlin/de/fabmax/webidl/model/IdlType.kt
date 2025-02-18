@@ -1,6 +1,6 @@
 package de.fabmax.webidl.model
 
-data class IdlType(val typeName: String, val isArray: Boolean) {
+data class IdlType(val typeName: String, val isArray: Boolean, val parameterTypes: List<String>? = null) {
 
     val isVoid = typeName == "void"
     val isString = typeName == "DOMString" || typeName == "USVString"
@@ -30,19 +30,26 @@ data class IdlType(val typeName: String, val isArray: Boolean) {
             "short", "long", "long long", "unsigned short", "unsigned long", "unsigned long long", "void",
             "any", "VoidPtr")
 
+        internal val parameterizedTypes = setOf("sequence", "record", "FrozenArray", "Promise")
+
         private val interfaceNameRegex = Regex("[a-zA-Z_]\\w*")
 
         fun isValidTypeName(typeName: String): Boolean {
-            val nonArrayType = if (typeName.endsWith("[]")){
+            val nonArrayType = if (typeName.endsWith("[]")) {
                 typeName.substring(0, typeName.length - 2).trim()
-            } else{
+            } else {
                 typeName
             }
-            return nonArrayType in basicTypes || interfaceNameRegex.matches(nonArrayType)
+            return nonArrayType in basicTypes ||
+                    parameterizedTypes.any { nonArrayType.startsWith(it) } ||
+                    interfaceNameRegex.matches(nonArrayType)
         }
 
         fun startsWithType(line: String): Boolean {
             if (basicTypes.any { line.startsWith(it) }) {
+                return true
+            }
+            if (parameterizedTypes.any { line.startsWith(it) }) {
                 return true
             }
             return 0 == interfaceNameRegex.find(line)?.range?.start

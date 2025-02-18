@@ -9,6 +9,11 @@ interface AnInterface {
 
     attribute unsigned long long someAttribute;
     readonly attribute unsigned long long readOnlyAttribute;
+    attribute sequence<any> someSequence;
+    attribute record<any, any> someRecord;
+    attribute FrozenArray<any> someFrozenArray;
+    attribute Promise<any> somePromise;
+    attribute Promise < any > somePromiseWithExtraSpace;
 };
 
 [Prefix = "someNamespaceWithSpace::"]
