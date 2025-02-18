@@ -135,8 +135,8 @@ class WebIdlStream {
                 typeName += popUntilWhitespaceOrEnd(parser)
             }
 
-            val typeParams = typeName.substring(typeName.indexOf("<") + 1, typeName.lastIndexOf(">"))
-            typeName = typeName.substring(0, typeName.indexOf("<"))
+            val typeParams = typeName.substringAfter('<').substringBeforeLast('>')
+            typeName = typeName.substringBefore("<")
             return IdlType(typeName, isArray, typeParams)
         }
 
