@@ -7,6 +7,7 @@ class IdlInterface(builder: Builder) : IdlDecoratedElement(builder) {
     val superInterfaces = builder.superInterfaces.toList()
     val sourcePackage = builder.sourcePackage
     val isMixin = builder.isMixin
+    val setLike = builder.setLike?.build()
 
     init {
         functions = builder.functions.flatMap { it.build() }
@@ -43,6 +44,7 @@ class IdlInterface(builder: Builder) : IdlDecoratedElement(builder) {
         val superInterfaces = mutableSetOf<String>()
         var sourcePackage = ""
         var isMixin = false
+        var setLike: IdlSetLike.Builder? = null
 
         fun addAttribute(attribute: IdlAttribute.Builder) {
             attributes += attribute
