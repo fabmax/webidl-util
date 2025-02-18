@@ -1,6 +1,6 @@
 package de.fabmax.webidl.model
 
-data class IdlType(val typeName: String, val isArray: Boolean, val parameterType: String? = null) {
+data class IdlType(val typeName: String, val isArray: Boolean, val parameterType: List<String>? = null) {
 
     val isVoid = typeName == "void"
     val isString = typeName == "DOMString" || typeName == "USVString"
