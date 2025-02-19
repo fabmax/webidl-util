@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.test.assertNotNull
 
 class ParserTest {
 
@@ -22,7 +23,7 @@ class ParserTest {
         }
 
         assertTrue(model.dictionaries.size == 1)
-        assertTrue(model.interfaces.size == 5)
+        assertTrue(model.interfaces.size == 6)
 
 
         assertEquals("AnDictionary", model.dictionaries[0].name)
@@ -68,6 +69,10 @@ class ParserTest {
         assertEquals("JavaErrorCallback", model.interfaces[javaErrorCallbackIndex].name)
         assertEquals("ErrorCallback", model.interfaces[javaErrorCallbackIndex].getDecoratorValue("JSImplementation", ""))
 
+        val setLikeIndex = 5
+        assertEquals("SetLikeInterface", model.interfaces[setLikeIndex].name)
+        assertNotNull(model.interfaces[setLikeIndex].setLike)
+        assertEquals("DOMString", model.interfaces[setLikeIndex].setLike?.type?.typeName)
     }
 
     @Test(expected = ParserException::class)
@@ -79,6 +84,12 @@ class ParserTest {
     @Test(expected = ParserException::class)
     fun parserTestBadEnum() {
         val inStream = ParserTest::class.java.classLoader.getResourceAsStream("bad-enum.idl")!!
+        WebIdlParser.parseFromInputStream(inStream)
+    }
+
+    @Test(expected = ParserException::class)
+    fun parserTestBadSetLike() {
+        val inStream = ParserTest::class.java.classLoader.getResourceAsStream("bad-setlike.idl")!!
         WebIdlParser.parseFromInputStream(inStream)
     }
 

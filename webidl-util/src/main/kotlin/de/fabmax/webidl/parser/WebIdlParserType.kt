@@ -37,10 +37,20 @@ enum class WebIdlParserType {
     },
 
     Interface {
-        override fun possibleChildren() = listOf(Decorators, LineComment, BlockComment, Attribute, Function)
+        override fun possibleChildren() = listOf(Decorators, LineComment, BlockComment, Attribute, Function, SetLike)
         override suspend fun matches(stream: WebIdlStream) = stream.startsWith("interface")
         override fun newParser(parserState: WebIdlParser.ParserState) = parserState.pushParser(
             InterfaceParser(
+                parserState
+            )
+        )
+    },
+
+    SetLike {
+        override fun possibleChildren(): List<WebIdlParserType> = emptyList()
+        override suspend fun matches(stream: WebIdlStream) = stream.startsWith("readonly setlike")
+        override fun newParser(parserState: WebIdlParser.ParserState) = parserState.pushParser(
+            SetLikeParser(
                 parserState
             )
         )

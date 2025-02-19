@@ -50,3 +50,7 @@ dictionary AnDictionary {
     required unsigned long long requiredMember;
     USVString someMemberWithDefaultValue = "my string";
 };
+
+interface SetLikeInterface {
+    readonly setlike<DOMString>;
+};
