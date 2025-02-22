@@ -7,6 +7,14 @@ abstract class ElementParser(val parserState: WebIdlParser.ParserState, val self
 
     abstract suspend fun parse(): String?
 
+    suspend fun parseChildren() {
+        var child = selfType.possibleChildren().find { it.matches(stream) }
+        while (child != null) {
+            child.newParser(parserState).parse()
+            child = selfType.possibleChildren().find { it.matches(stream) }
+        }
+    }
+
     suspend fun parseChildren(termToken: String?) {
         var child = selfType.possibleChildren().find { it.matches(stream) }
         var childTerm: String? = null

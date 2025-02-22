@@ -10,7 +10,7 @@ class TypeDefParser(parserState: WebIdlParser.ParserState) : ElementParser(parse
     override suspend fun parse(): String {
         builder = IdlTypeDef.Builder()
         popToken("typedef")
-        parseChildren(null)
+        parseChildren()
         parserState.popDecorators(builder)
         builder.type = parseType()
         val tokens = popUntilPattern(";") ?: parserException("Failed parsing member")
