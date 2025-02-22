@@ -54,3 +54,7 @@ dictionary AnDictionary {
 interface SetLikeInterface {
     readonly setlike<DOMString>;
 };
+
+typedef [Value, AnotherValue] unsigned long ATypeDef;
+typedef sequence<DOMString> ATypeDef2;
+//typedef (DOMString or ATypeDef) ATypeDef3;

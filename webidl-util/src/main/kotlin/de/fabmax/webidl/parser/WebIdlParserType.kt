@@ -4,7 +4,7 @@ import de.fabmax.webidl.model.IdlType
 
 enum class WebIdlParserType {
     Root {
-        override fun possibleChildren() = listOf(Interface, Enum, LineComment, BlockComment, Decorators, Implements, Dictionary, Includes)
+        override fun possibleChildren() = listOf(Interface, Enum, LineComment, BlockComment, Decorators, Implements, Dictionary, Includes, TypeDef)
         override suspend fun matches(stream: WebIdlStream) = false
         override fun newParser(parserState: WebIdlParser.ParserState) = RootParser(parserState)
     },
@@ -149,6 +149,16 @@ enum class WebIdlParserType {
         override suspend fun matches(stream: WebIdlStream) = stream.pollUntilPattern("\\sincludes\\s", "[;,\\{\\}]") != null
         override fun newParser(parserState: WebIdlParser.ParserState) = parserState.pushParser(
             IncludesParser(
+                parserState
+            )
+        )
+    },
+
+    TypeDef {
+        override fun possibleChildren(): List<WebIdlParserType> = listOf(Decorators)
+        override suspend fun matches(stream: WebIdlStream) = stream.startsWith("typedef ")
+        override fun newParser(parserState: WebIdlParser.ParserState) = parserState.pushParser(
+            TypeDefParser(
                 parserState
             )
         )
