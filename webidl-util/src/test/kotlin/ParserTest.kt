@@ -3,6 +3,7 @@ import de.fabmax.webidl.generator.jni.nat.JniNativeGenerator
 import de.fabmax.webidl.generator.ktjs.KtJsInterfaceGenerator
 import de.fabmax.webidl.model.IdlDecorator
 import de.fabmax.webidl.model.IdlSimpleType
+import de.fabmax.webidl.model.IdlUnionType
 import de.fabmax.webidl.parser.ParserException
 import de.fabmax.webidl.parser.WebIdlParser
 import kotlinx.coroutines.runBlocking
@@ -25,7 +26,7 @@ class ParserTest {
 
         assertTrue(model.dictionaries.size == 1)
         assertTrue(model.interfaces.size == 6)
-        assertTrue(model.typeDefs.size == 2)
+        assertTrue(model.typeDefs.size == 3)
         assertTrue(model.namespaces.size == 1)
         assertTrue(model.namespaces[0].constants.size == 2)
 
@@ -87,6 +88,10 @@ class ParserTest {
         assertEquals("ATypeDef2", model.typeDefs[1].name)
         assertEquals("sequence", (model.typeDefs[1].type as? IdlSimpleType)?.typeName)
         assertEquals("DOMString", (model.typeDefs[1].type as? IdlSimpleType)?.parameterTypes!![0])
+
+        assertEquals("ATypeDef3", model.typeDefs[2].name)
+        assertEquals("DOMString", (model.typeDefs[2].type as? IdlUnionType)?.types!![0].typeName)
+        assertEquals("ATypeDef", (model.typeDefs[2].type as? IdlUnionType)?.types!![1].typeName)
 
         assertEquals("TypeDefs", model.namespaces[0].name)
         assertEquals("CONST_1", model.namespaces[0].constants[0].name)

@@ -2,6 +2,7 @@ package de.fabmax.webidl.parser
 
 import de.fabmax.webidl.model.IdlSimpleType
 import de.fabmax.webidl.model.IdlType
+import de.fabmax.webidl.model.IdlUnionType
 import kotlinx.coroutines.channels.Channel
 import java.util.*
 
@@ -101,16 +102,31 @@ class WebIdlStream {
     }
 
     suspend fun parseType(parser: ElementParser): IdlType {
+        if (buffer.startsWith("(")) {
+            popToken("(", parser)
+            val types = mutableListOf(
+                parseType(parser) as IdlSimpleType
+            )
+            while (popIfPresent("or", parser)) {
+                types += parseType(parser) as IdlSimpleType
+            }
+            popIfPresent(")", parser)
+            return IdlUnionType(types.toList())
+        }
+
         var isArray = false
         var isUnsigned = false
 
         var typeName = popUntilWhitespaceOrEnd(parser)
+            .removeUnionToken()
         if (typeName == "unsigned") {
             isUnsigned = true
             typeName = popUntilWhitespaceOrEnd(parser)
+                .removeUnionToken()
         }
         if (typeName == "long") {
             val next = pollUntilWhitespaceOrEnd()
+                .removeUnionToken()
             if (next == "long" || next == "long[]") {
                 typeName = "long $next"
                 popToken(next, parser)
@@ -152,6 +168,8 @@ class WebIdlStream {
         private val whitespaceRegex = Regex("\\s+")
     }
 }
+
+private fun String.removeUnionToken(): String = substringBefore(")")
 
 private suspend fun whileWithMaxTry(shouldContinue: () -> Boolean, maxAttempts: Int, task: suspend () -> Unit) {
     var attempts = 0
