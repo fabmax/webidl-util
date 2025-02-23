@@ -1,32 +1,17 @@
 package de.fabmax.webidl.model
 
-data class IdlType(val typeName: String, val isArray: Boolean, val parameterTypes: List<String>? = null) {
+sealed interface IdlType {
 
-    val isVoid = typeName == "void"
-    val isString = typeName == "DOMString" || typeName == "USVString"
-    val isVoidPtr = typeName == "VoidPtr"
-    val isAny = typeName == "any"
-
-    val isAnyOrVoidPtr = isVoidPtr || isAny
-    val isPrimitive = typeName in basicTypes && !isAnyOrVoidPtr
-    val isComplexType = !isPrimitive && !isAnyOrVoidPtr
-
-    fun isEnum(model: IdlModel) = model.enums.any { it.name == typeName }
-
-    fun isValid(): Boolean {
-        return isValidTypeName(typeName)
-    }
-
-    override fun toString(): String {
-        val sb = StringBuilder(typeName)
-        if (isArray) {
-            sb.append("[]")
-        }
-        return sb.toString()
-    }
+    val isVoid: Boolean
+    val isString: Boolean
+    val isVoidPtr: Boolean
+    val isAny: Boolean
+    val isAnyOrVoidPtr: Boolean
+    val isPrimitive: Boolean
+    val isComplexType: Boolean
 
     companion object {
-        private val basicTypes = setOf("boolean", "float", "double", "byte", "DOMString", "USVString", "octet",
+        internal val basicTypes = setOf("boolean", "float", "double", "byte", "DOMString", "USVString", "octet",
             "short", "long", "long long", "unsigned short", "unsigned long", "unsigned long long", "void",
             "any", "VoidPtr")
 

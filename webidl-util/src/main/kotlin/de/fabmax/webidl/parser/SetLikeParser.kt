@@ -2,7 +2,7 @@ package de.fabmax.webidl.parser
 
 
 import de.fabmax.webidl.model.IdlSetLike
-import de.fabmax.webidl.model.IdlType
+import de.fabmax.webidl.model.IdlSimpleType
 
 class SetLikeParser(parserState: WebIdlParser.ParserState) : ElementParser(parserState,
     WebIdlParserType.Function
@@ -13,7 +13,7 @@ class SetLikeParser(parserState: WebIdlParser.ParserState) : ElementParser(parse
         val type = (popUntilPattern(";")?.first ?: parserException("Failed parsing setlike"))
             .substringAfter("<")
             .substringBefore(">")
-            .let { IdlType(it, false) }
+            .let { IdlSimpleType(it, false) }
 
         builder = IdlSetLike.Builder(type)
         parserState.parentParser<InterfaceParser>().builder.setLike = builder

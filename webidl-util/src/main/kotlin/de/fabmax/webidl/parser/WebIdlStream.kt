@@ -1,5 +1,6 @@
 package de.fabmax.webidl.parser
 
+import de.fabmax.webidl.model.IdlSimpleType
 import de.fabmax.webidl.model.IdlType
 import kotlinx.coroutines.channels.Channel
 import java.util.*
@@ -137,10 +138,10 @@ class WebIdlStream {
 
             val typeParams = typeName.substringAfter('<').substringBeforeLast('>')
             typeName = typeName.substringBefore("<")
-            return IdlType(typeName, isArray, typeParams.split(',').map { it.trim() })
+            return IdlSimpleType(typeName, isArray, typeParams.split(',').map { it.trim() })
         }
 
-        val type = IdlType(typeName, isArray)
+        val type = IdlSimpleType(typeName, isArray)
         if (!type.isValid()) {
             parser.parserException("Invalid Type: \"$type\"")
         }
