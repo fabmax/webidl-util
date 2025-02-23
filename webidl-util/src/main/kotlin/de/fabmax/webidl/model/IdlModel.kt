@@ -5,13 +5,17 @@ import java.util.*
 class IdlModel private constructor(builder: Builder) : IdlElement(builder) {
     val interfaces: List<IdlInterface>
     val dictionaries: List<IdlDictionary>
+    val namespaces: List<IdlNamespace>
     val enums: List<IdlEnum>
+    val typeDefs: List<IdlTypeDef>
 
     val interfacesByName: Map<String, IdlInterface>
 
     init {
         interfaces = List(builder.interfaces.size) { builder.interfaces[it].build() }
         dictionaries = List(builder.dictionaries.size) { builder.dictionaries[it].build() }
+        namespaces = emptyList()//List(builder.namespaces.size) { builder.namespaces[it].build() }
+        typeDefs = List(builder.typeDefs.size) { builder.typeDefs[it].build() }
         interfacesByName = interfaces.associateBy { it.name }
         enums = List(builder.enums.size) { builder.enums[it].build() }
 
@@ -64,12 +68,14 @@ class IdlModel private constructor(builder: Builder) : IdlElement(builder) {
         val implements = mutableListOf<Pair<String, String>>()
         val includes = mutableListOf<Pair<String, String>>()
         val enums = mutableListOf<IdlEnum.Builder>()
+        val typeDefs = mutableListOf<IdlTypeDef.Builder>()
 
         fun addInterface(idlInterface: IdlInterface.Builder) { interfaces += idlInterface }
         fun addDictionary(idlDictionary: IdlDictionary.Builder) { dictionaries += idlDictionary }
         fun addImplements(concreteInterface: String, superInterface: String) { implements += concreteInterface to superInterface }
         fun addIncludes(concreteInterface: String, superInterface: String) { includes += concreteInterface to superInterface }
         fun addEnum(idlEnum: IdlEnum.Builder) { enums += idlEnum }
+        fun addTypeDef(idlTypeDef: IdlTypeDef.Builder) { typeDefs += idlTypeDef }
 
         fun build(): IdlModel {
             implements.forEach { (ci, si) ->

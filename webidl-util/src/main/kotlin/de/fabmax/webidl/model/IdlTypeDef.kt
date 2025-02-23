@@ -1,13 +1,11 @@
 package de.fabmax.webidl.model
 
 class IdlTypeDef private constructor(builder: Builder) : IdlDecoratedElement(builder) {
-    val type = builder.type
+    val type = builder.type ?: throw IllegalArgumentException("Missing type")
 
     override fun toString(indent: String): String {
         val str = StringBuilder(indent)
-        str.append(decoratorsToStringOrEmpty(postfix = " "))
-        TODO()
-        str.append(";")
+        str.append("typedef ${decoratorsToStringOrEmpty(postfix = " ")} $type $name;")
         return str.toString()
     }
 
