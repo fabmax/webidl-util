@@ -58,3 +58,8 @@ interface SetLikeInterface {
 typedef [Value, AnotherValue] unsigned long ATypeDef;
 typedef sequence<DOMString> ATypeDef2;
 //typedef (DOMString or ATypeDef) ATypeDef3;
+
+namespace TypeDefs {
+    const ATypeDef CONST_1      = 0x0001;
+    const ATypeDef CONST_2      = 0x0002;
+};

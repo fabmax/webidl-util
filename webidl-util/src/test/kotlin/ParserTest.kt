@@ -25,7 +25,8 @@ class ParserTest {
         assertTrue(model.dictionaries.size == 1)
         assertTrue(model.interfaces.size == 6)
         assertTrue(model.typeDefs.size == 2)
-        assertTrue(model.namespaces.size == 0)
+        assertTrue(model.namespaces.size == 1)
+        assertTrue(model.namespaces[0].constantes.size == 2)
 
 
         assertEquals("AnDictionary", model.dictionaries[0].name)
@@ -84,6 +85,14 @@ class ParserTest {
         assertEquals("ATypeDef2", model.typeDefs[1].name)
         assertEquals("sequence", model.typeDefs[1].type.typeName)
         assertEquals("DOMString", model.typeDefs[1].type.parameterTypes!![0])
+
+        assertEquals("TypeDefs", model.namespaces[0].name)
+        assertEquals("CONST_1", model.namespaces[0].constantes[0].name)
+        assertEquals("ATypeDef", model.namespaces[0].constantes[0].type.typeName)
+        assertEquals("0x0001", model.namespaces[0].constantes[0].defaultValue)
+        assertEquals("CONST_2", model.namespaces[0].constantes[1].name)
+        assertEquals("ATypeDef", model.namespaces[0].constantes[1].type.typeName)
+        assertEquals("0x0002", model.namespaces[0].constantes[1].defaultValue)
     }
 
     @Test(expected = ParserException::class)

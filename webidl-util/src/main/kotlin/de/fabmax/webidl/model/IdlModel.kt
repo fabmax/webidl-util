@@ -14,7 +14,7 @@ class IdlModel private constructor(builder: Builder) : IdlElement(builder) {
     init {
         interfaces = List(builder.interfaces.size) { builder.interfaces[it].build() }
         dictionaries = List(builder.dictionaries.size) { builder.dictionaries[it].build() }
-        namespaces = emptyList()//List(builder.namespaces.size) { builder.namespaces[it].build() }
+        namespaces = List(builder.namespaces.size) { builder.namespaces[it].build() }
         typeDefs = List(builder.typeDefs.size) { builder.typeDefs[it].build() }
         interfacesByName = interfaces.associateBy { it.name }
         enums = List(builder.enums.size) { builder.enums[it].build() }
@@ -69,6 +69,7 @@ class IdlModel private constructor(builder: Builder) : IdlElement(builder) {
         val includes = mutableListOf<Pair<String, String>>()
         val enums = mutableListOf<IdlEnum.Builder>()
         val typeDefs = mutableListOf<IdlTypeDef.Builder>()
+        val namespaces = mutableListOf<IdlNamespace.Builder>()
 
         fun addInterface(idlInterface: IdlInterface.Builder) { interfaces += idlInterface }
         fun addDictionary(idlDictionary: IdlDictionary.Builder) { dictionaries += idlDictionary }
@@ -76,6 +77,7 @@ class IdlModel private constructor(builder: Builder) : IdlElement(builder) {
         fun addIncludes(concreteInterface: String, superInterface: String) { includes += concreteInterface to superInterface }
         fun addEnum(idlEnum: IdlEnum.Builder) { enums += idlEnum }
         fun addTypeDef(idlTypeDef: IdlTypeDef.Builder) { typeDefs += idlTypeDef }
+        fun addNamespace(idlNamespace: IdlNamespace.Builder) { namespaces += idlNamespace }
 
         fun build(): IdlModel {
             implements.forEach { (ci, si) ->
