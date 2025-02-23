@@ -10,7 +10,7 @@ class ConstantParser(parserState: WebIdlParser.ParserState) : ElementParser(
     override suspend fun parse(): String {
         popToken("const")
         val type = parseType()
-        val tokens = popUntilPattern(";") ?: parserException("Failed parsing member")
+        val tokens = popUntilPattern(";") ?: parserException("Failed parsing constant")
         val name = tokens.first.substringBefore("=").trim()
         val builder = IdlConstant.Builder(name, type).also {
             it.defaultValue = tokens.first.substringAfter("=").trim()
