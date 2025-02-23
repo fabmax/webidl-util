@@ -2,6 +2,7 @@ import de.fabmax.webidl.generator.jni.java.JniJavaGenerator
 import de.fabmax.webidl.generator.jni.nat.JniNativeGenerator
 import de.fabmax.webidl.generator.ktjs.KtJsInterfaceGenerator
 import de.fabmax.webidl.model.IdlDecorator
+import de.fabmax.webidl.model.IdlSimpleType
 import de.fabmax.webidl.parser.ParserException
 import de.fabmax.webidl.parser.WebIdlParser
 import kotlinx.coroutines.runBlocking
@@ -57,9 +58,10 @@ class ParserTest {
             Triple("FrozenArray", listOf("any"), "someFrozenArray"),
             Triple("Promise", listOf("any"), "somePromise"),
             Triple("Promise", listOf("any"), "somePromiseWithExtraSpace")
-        ).forEachIndexed { index, (type, parameterType, name) ->
-            assertEquals(type, model.interfaces[anInterfaceIndex].attributes[index].type.typeName)
-            assertEquals(parameterType, model.interfaces[anInterfaceIndex].attributes[index].type.parameterTypes)
+        ).forEachIndexed { index, (expectedType, parameterType, name) ->
+            val actualType = model.interfaces[anInterfaceIndex].attributes[index].type as? IdlSimpleType
+            assertEquals(expectedType, actualType?.typeName)
+            assertEquals(parameterType, actualType?.parameterTypes)
             assertEquals(name, model.interfaces[anInterfaceIndex].attributes[index].name)
         }
 
@@ -75,23 +77,23 @@ class ParserTest {
         val setLikeIndex = 5
         assertEquals("SetLikeInterface", model.interfaces[setLikeIndex].name)
         assertNotNull(model.interfaces[setLikeIndex].setLike)
-        assertEquals("DOMString", model.interfaces[setLikeIndex].setLike?.type?.typeName)
+        assertEquals("DOMString", (model.interfaces[setLikeIndex].setLike?.type as? IdlSimpleType)?.typeName)
 
         assertEquals("ATypeDef", model.typeDefs[0].name)
-        assertEquals("unsigned long", model.typeDefs[0].type.typeName)
+        assertEquals("unsigned long", (model.typeDefs[0].type as? IdlSimpleType)?.typeName)
         assertEquals("Value", model.typeDefs[0].decorators[0].key)
         assertEquals("AnotherValue", model.typeDefs[0].decorators[1].key)
 
         assertEquals("ATypeDef2", model.typeDefs[1].name)
-        assertEquals("sequence", model.typeDefs[1].type.typeName)
-        assertEquals("DOMString", model.typeDefs[1].type.parameterTypes!![0])
+        assertEquals("sequence", (model.typeDefs[1].type as? IdlSimpleType)?.typeName)
+        assertEquals("DOMString", (model.typeDefs[1].type as? IdlSimpleType)?.parameterTypes!![0])
 
         assertEquals("TypeDefs", model.namespaces[0].name)
         assertEquals("CONST_1", model.namespaces[0].constants[0].name)
-        assertEquals("ATypeDef", model.namespaces[0].constants[0].type.typeName)
+        assertEquals("ATypeDef", (model.namespaces[0].constants[0].type as? IdlSimpleType)?.typeName)
         assertEquals("0x0001", model.namespaces[0].constants[0].defaultValue)
         assertEquals("CONST_2", model.namespaces[0].constants[1].name)
-        assertEquals("ATypeDef", model.namespaces[0].constants[1].type.typeName)
+        assertEquals("ATypeDef", (model.namespaces[0].constants[1].type as? IdlSimpleType)?.typeName)
         assertEquals("0x0002", model.namespaces[0].constants[1].defaultValue)
     }
 
