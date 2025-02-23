@@ -5,6 +5,7 @@ import de.fabmax.webidl.parser.ParserException
 class IdlInterface(builder: Builder) : IdlDecoratedElement(builder) {
     val attributes = List(builder.attributes.size) { builder.attributes[it].build() }
     val functions: List<IdlFunction> = builder.functions.flatMap { it.build() }
+    val constructors: List<IdlConstructor> = builder.constructors.flatMap { it.build() }
     val functionsByName: Map<String, IdlFunction> = functions.associateBy { it.name }
     val superInterfaces = builder.superInterfaces.toList()
     val sourcePackage = builder.sourcePackage
@@ -15,6 +16,7 @@ class IdlInterface(builder: Builder) : IdlDecoratedElement(builder) {
         if (setLike != null) {
             if (functions.isNotEmpty()) throw ParserException("functions and setlike are mutually exclusive")
             if (attributes.isNotEmpty()) throw ParserException("attributes and setlike are mutually exclusive")
+            if (constructors.isNotEmpty()) throw ParserException("constructors and setlike are mutually exclusive")
         }
     }
 
@@ -22,6 +24,7 @@ class IdlInterface(builder: Builder) : IdlDecoratedElement(builder) {
         this.parentModel = parentModel
         attributes.forEach { it.finishModel(this) }
         functions.forEach { it.finishModel(this) }
+        constructors.forEach { it.finishModel(this) }
     }
 
     override fun toString(indent: String): String {
@@ -45,6 +48,7 @@ class IdlInterface(builder: Builder) : IdlDecoratedElement(builder) {
     class Builder(name: String) : IdlDecoratedElement.Builder(name) {
         val attributes = mutableListOf<IdlAttribute.Builder>()
         val functions = mutableListOf<IdlFunction.Builder>()
+        val constructors = mutableListOf<IdlConstructor.Builder>()
         val superInterfaces = mutableSetOf<String>()
         var sourcePackage = ""
         var isMixin = false
@@ -56,6 +60,10 @@ class IdlInterface(builder: Builder) : IdlDecoratedElement(builder) {
 
         fun addFunction(function: IdlFunction.Builder) {
             functions += function
+        }
+
+        fun addConstructor(constructor: IdlConstructor.Builder) {
+            constructors += constructor
         }
 
         fun build() = IdlInterface(this)

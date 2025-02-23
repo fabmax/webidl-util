@@ -130,8 +130,12 @@ class WebIdlParser(
                 field = value
             }
 
+        inline fun<reified T: ElementParser> parentParserOrNull(): T? {
+            return parserStack[parserStack.lastIndex - 1] as? T
+        }
+
         inline fun<reified T: ElementParser> parentParser(): T {
-            return parserStack[parserStack.lastIndex - 1] as? T ?: throw IllegalStateException("Unexpected parent parser type")
+            return parentParserOrNull<T>() ?: throw IllegalStateException("Unexpected parent parser type")
         }
 
         fun <T: ElementParser> pushParser(builder: T): T {

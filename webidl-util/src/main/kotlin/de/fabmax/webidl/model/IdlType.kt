@@ -24,7 +24,7 @@ sealed interface IdlType {
                 typeName.substring(0, typeName.length - 2).trim()
             } else {
                 typeName
-            }
+            }.removeOptionalMarker()
             return nonArrayType in basicTypes ||
                     parameterizedTypes.any { nonArrayType.startsWith(it) } ||
                     interfaceNameRegex.matches(nonArrayType)
@@ -42,3 +42,5 @@ sealed interface IdlType {
         }
     }
 }
+
+private fun String.removeOptionalMarker() = if (endsWith("?")) substringBefore("?") else this

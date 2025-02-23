@@ -14,7 +14,8 @@ class FunctionParameterParser(parserState: WebIdlParser.ParserState) : ElementPa
         builder = IdlFunctionParameter.Builder(name.first, paramType)
         builder.isOptional = isOptional
         parserState.popDecorators(builder)
-        parserState.parentParser<FunctionParser>().builder.addParameter(builder)
+        parserState.parentParserOrNull<FunctionParser>()?.builder?.addParameter(builder)
+        parserState.parentParserOrNull<ConstructorParser>()?.builder?.addParameter(builder)
 
         parserState.popParser()
         return name.second

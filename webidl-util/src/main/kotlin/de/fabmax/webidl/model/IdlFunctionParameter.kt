@@ -4,10 +4,10 @@ class IdlFunctionParameter private constructor(builder: Builder) : IdlDecoratedE
     val type = builder.type
     val isOptional = builder.isOptional
 
-    var parentFunction: IdlFunction? = null
+    var parentFunction: IdlDecoratedElement? = null
         private set
 
-    fun finishModel(parentFunction: IdlFunction) {
+    fun finishModel(parentFunction: IdlDecoratedElement) {
         parentModel = parentFunction.parentModel
         this.parentFunction = parentFunction
     }
