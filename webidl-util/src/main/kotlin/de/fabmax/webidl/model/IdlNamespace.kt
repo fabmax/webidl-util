@@ -3,10 +3,6 @@ package de.fabmax.webidl.model
 class IdlNamespace(builder: Builder) : IdlDecoratedElement(builder) {
     val constantes = List(builder.constantes.size) { builder.constantes[it].build() }
 
-    fun finishModel(parentModel: IdlModel) {
-        this.parentModel = parentModel
-    }
-
     override fun toString(indent: String): String {
         val subIndent = "$indent    "
         val str = StringBuilder()
