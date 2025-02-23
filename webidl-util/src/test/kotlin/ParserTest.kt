@@ -24,6 +24,9 @@ class ParserTest {
 
         assertTrue(model.dictionaries.size == 1)
         assertTrue(model.interfaces.size == 6)
+        assertTrue(model.typeDefs.size == 2)
+        assertTrue(model.namespaces.size == 1)
+        assertTrue(model.namespaces[0].constants.size == 2)
 
 
         assertEquals("AnDictionary", model.dictionaries[0].name)
@@ -73,6 +76,23 @@ class ParserTest {
         assertEquals("SetLikeInterface", model.interfaces[setLikeIndex].name)
         assertNotNull(model.interfaces[setLikeIndex].setLike)
         assertEquals("DOMString", model.interfaces[setLikeIndex].setLike?.type?.typeName)
+
+        assertEquals("ATypeDef", model.typeDefs[0].name)
+        assertEquals("unsigned long", model.typeDefs[0].type.typeName)
+        assertEquals("Value", model.typeDefs[0].decorators[0].key)
+        assertEquals("AnotherValue", model.typeDefs[0].decorators[1].key)
+
+        assertEquals("ATypeDef2", model.typeDefs[1].name)
+        assertEquals("sequence", model.typeDefs[1].type.typeName)
+        assertEquals("DOMString", model.typeDefs[1].type.parameterTypes!![0])
+
+        assertEquals("TypeDefs", model.namespaces[0].name)
+        assertEquals("CONST_1", model.namespaces[0].constants[0].name)
+        assertEquals("ATypeDef", model.namespaces[0].constants[0].type.typeName)
+        assertEquals("0x0001", model.namespaces[0].constants[0].defaultValue)
+        assertEquals("CONST_2", model.namespaces[0].constants[1].name)
+        assertEquals("ATypeDef", model.namespaces[0].constants[1].type.typeName)
+        assertEquals("0x0002", model.namespaces[0].constants[1].defaultValue)
     }
 
     @Test(expected = ParserException::class)

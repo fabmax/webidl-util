@@ -54,3 +54,11 @@ dictionary AnDictionary {
 interface SetLikeInterface {
     readonly setlike<DOMString>;
 };
+
+typedef [Value, AnotherValue] unsigned long ATypeDef;
+typedef sequence<DOMString> ATypeDef2;
+
+namespace TypeDefs {
+    const ATypeDef CONST_1      = 0x0001;
+    const ATypeDef CONST_2      = 0x0002;
+};
