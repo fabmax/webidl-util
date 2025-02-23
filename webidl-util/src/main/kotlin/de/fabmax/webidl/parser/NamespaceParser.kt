@@ -12,7 +12,6 @@ class NamespaceParser(parserState: WebIdlParser.ParserState) : ElementParser(par
 
         val interfaceName = popUntilPattern("\\{") ?: parserException("Failed parsing interface name")
         builder = IdlNamespace.Builder(interfaceName.first)
-        builder.sourcePackage = parserState.sourcePackage
         parserState.popDecorators(builder)
         parserState.parentParser<RootParser>().builder.addNamespace(builder)
 

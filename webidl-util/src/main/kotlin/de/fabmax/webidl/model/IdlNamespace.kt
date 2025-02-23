@@ -2,7 +2,6 @@ package de.fabmax.webidl.model
 
 class IdlNamespace(builder: Builder) : IdlDecoratedElement(builder) {
     val constantes = List(builder.constantes.size) { builder.constantes[it].build() }
-    val sourcePackage = builder.sourcePackage
 
     fun finishModel(parentModel: IdlModel) {
         this.parentModel = parentModel
@@ -24,7 +23,6 @@ class IdlNamespace(builder: Builder) : IdlDecoratedElement(builder) {
 
     class Builder(name: String) : IdlDecoratedElement.Builder(name) {
         val constantes = mutableListOf<IdlConstant.Builder>()
-        var sourcePackage = ""
 
         fun build() = IdlNamespace(this)
 
