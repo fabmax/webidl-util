@@ -31,6 +31,7 @@ sealed interface IdlType {
         }
 
         fun startsWithType(line: String): Boolean {
+            val line = if (line.startsWith("(")) line.substringAfter("(") else line
             if (basicTypes.any { line.startsWith(it) }) {
                 return true
             }
