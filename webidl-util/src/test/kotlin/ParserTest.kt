@@ -87,7 +87,7 @@ class ParserTest {
 
         assertEquals("ATypeDef2", model.typeDefs[1].name)
         assertEquals("sequence", (model.typeDefs[1].type as? IdlSimpleType)?.typeName)
-        assertEquals("DOMString", (model.typeDefs[1].type as? IdlSimpleType)?.parameterTypes!![0])
+        assertEquals("DOMString?", (model.typeDefs[1].type as? IdlSimpleType)?.parameterTypes!![0])
 
         assertEquals("ATypeDef3", model.typeDefs[2].name)
         assertEquals("DOMString", (model.typeDefs[2].type as? IdlUnionType)?.types!![0].typeName)

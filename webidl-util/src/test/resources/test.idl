@@ -56,7 +56,7 @@ interface SetLikeInterface {
 };
 
 typedef [Value, AnotherValue] unsigned long ATypeDef;
-typedef sequence<DOMString> ATypeDef2;
+typedef sequence<DOMString?> ATypeDef2;
 typedef (DOMString or ATypeDef) ATypeDef3;
 
 namespace TypeDefs {
