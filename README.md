@@ -1,7 +1,7 @@
 # webidl-util
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/de.fabmax/webidl-util/badge.svg)](https://central.sonatype.com/artifact/de.fabmax/webidl-util)
+[![Maven Central](https://img.shields.io/maven-central/v/de.fabmax/webidl-util.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22de.fabmax%22%20AND%20a:%22webidl-util%22)
 
 A parser and code-generator for WebIDL files.
 
@@ -28,7 +28,7 @@ a plane library, which can be used for advanced use-cases.
 Apply the gradle plugin to your project:
 ```kotlin
 plugins {
-    id("de.fabmax.webidl-util") version "0.9.0"
+    id("de.fabmax.webidl-util") version "0.10.0"
 }
 ```
 Then configure it to generate JNI bindings:
@@ -79,7 +79,7 @@ The library is published on maven central:
 
 ```
 dependencies {
-    implementation("de.fabmax:webidl-util:0.9.0")
+    implementation("de.fabmax:webidl-util:0.10.0")
 }
 ```
 
