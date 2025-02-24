@@ -16,6 +16,9 @@ interface AnInterface {
     attribute Promise < any > somePromiseWithExtraSpace;
 };
 
+partial interface AnInterface {
+};
+
 [Prefix = "someNamespaceWithSpace::"]
 interface AnotherInterface {
     void AnotherInterface();

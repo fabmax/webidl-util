@@ -10,6 +10,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 
 class ParserTest {
@@ -25,7 +26,7 @@ class ParserTest {
         }
 
         assertTrue(model.dictionaries.size == 1)
-        assertTrue(model.interfaces.size == 6)
+        assertTrue(model.interfaces.size == 7)
         assertTrue(model.typeDefs.size == 3)
         assertTrue(model.namespaces.size == 1)
         assertTrue(model.namespaces[0].constants.size == 2)
@@ -44,12 +45,17 @@ class ParserTest {
 
         val anInterfaceIndex = 1
         assertEquals("AnInterface", model.interfaces[anInterfaceIndex].name)
+        assertFalse(model.interfaces[anInterfaceIndex].isPartial)
         assertTrue(model.interfaces[anInterfaceIndex].functions.size == 1)
         assertEquals("aFunction", model.interfaces[anInterfaceIndex].functions[0].name)
         assertTrue(model.interfaces[anInterfaceIndex].attributes.size == 7)
         assertTrue("readOnlyAttribute", model.interfaces[anInterfaceIndex].attributes[1].isReadonly)
         assertTrue(model.interfaces[anInterfaceIndex].hasDecorator(IdlDecorator.NO_DELETE))
         assertEquals("someNamespace::", model.interfaces[anInterfaceIndex].getDecoratorValue("Prefix", ""))
+
+        val anInterfaceExtensionIndex = 2
+        assertEquals("AnInterface", model.interfaces[anInterfaceExtensionIndex].name)
+        assertTrue(model.interfaces[anInterfaceExtensionIndex].isPartial)
 
         listOf(
             Triple("unsigned long long", null, "someAttribute"),
@@ -67,15 +73,15 @@ class ParserTest {
         }
 
 
-        val anotherInterfaceIndex = 2
+        val anotherInterfaceIndex = 3
         assertTrue(model.interfaces[anotherInterfaceIndex].superInterfaces.contains(model.interfaces[objectBaseIndex].name))
         assertEquals("someNamespaceWithSpace::", model.interfaces[anotherInterfaceIndex].getDecoratorValue("Prefix", ""))
 
-        val javaErrorCallbackIndex = 4
+        val javaErrorCallbackIndex = 5
         assertEquals("JavaErrorCallback", model.interfaces[javaErrorCallbackIndex].name)
         assertEquals("ErrorCallback", model.interfaces[javaErrorCallbackIndex].getDecoratorValue("JSImplementation", ""))
 
-        val setLikeIndex = 5
+        val setLikeIndex = 6
         assertEquals("SetLikeInterface", model.interfaces[setLikeIndex].name)
         assertNotNull(model.interfaces[setLikeIndex].setLike)
         assertEquals("DOMString", (model.interfaces[setLikeIndex].setLike?.type as? IdlSimpleType)?.typeName)
