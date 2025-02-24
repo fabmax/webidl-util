@@ -45,6 +45,11 @@ class ParserTest {
 
         val anInterfaceIndex = 1
         assertEquals("AnInterface", model.interfaces[anInterfaceIndex].name)
+        assertTrue(model.interfaces[anInterfaceIndex].constructors.size == 1)
+        assertTrue(model.interfaces[anInterfaceIndex].constructors[0].parameters.size == 1)
+        assertEquals("param1", model.interfaces[anInterfaceIndex].constructors[0].parameters[0].name)
+        assertEquals("10", model.interfaces[anInterfaceIndex].constructors[0].parameters[0].defaultValue)
+        assertEquals("long", (model.interfaces[anInterfaceIndex].constructors[0].parameters[0].type as IdlSimpleType).typeName)
         assertFalse(model.interfaces[anInterfaceIndex].isPartial)
         assertTrue(model.interfaces[anInterfaceIndex].functions.size == 1)
         assertEquals("aFunction", model.interfaces[anInterfaceIndex].functions[0].name)

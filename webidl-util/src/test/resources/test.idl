@@ -5,6 +5,7 @@ interface mixin ObjectBase {
 
 [Prefix="someNamespace::", NoDelete]
 interface AnInterface {
+    constructor(long param1 = 10);
     void aFunction(long param1, optional VoidPtr param2);
 
     attribute unsigned long long someAttribute;
