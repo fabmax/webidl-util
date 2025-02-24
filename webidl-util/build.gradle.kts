@@ -1,6 +1,3 @@
-import java.io.FileInputStream
-import java.util.*
-
 plugins {
     alias(libs.plugins.kotlin)
     alias(libs.plugins.dokka)
@@ -65,10 +62,7 @@ publishing {
         }
     }
 
-    if (File("${rootDir}/publishingCredentials.properties").exists()) {
-        val props = Properties()
-        props.load(FileInputStream("${rootDir}/publishingCredentials.properties"))
-
+    if (System.getenv("MAVEN_USERNAME") != null) {
         repositories {
             maven {
                 url = if (version.toString().endsWith("-SNAPSHOT")) {
@@ -77,13 +71,16 @@ publishing {
                     uri("https://oss.sonatype.org/service/local/staging/deploy/maven2")
                 }
                 credentials {
-                    username = props.getProperty("publishUser")
-                    password = props.getProperty("publishPassword")
+                    username = System.getenv("MAVEN_USERNAME")
+                    password = System.getenv("MAVEN_PASSWORD")
                 }
             }
         }
 
         signing {
+            val privateKey = System.getenv("GPG_PRIVATE_KEY")
+            val password = System.getenv("GPG_PASSWORD")
+            useInMemoryPgpKeys(privateKey, password)
             sign(publishing.publications["mavenKotlin"])
         }
     }

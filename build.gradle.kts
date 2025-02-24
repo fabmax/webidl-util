@@ -5,7 +5,7 @@ plugins {
 
 allprojects {
     group = "de.fabmax"
-    version = "0.10.0-SNAPSHOT"
+    version = "0.10.0"
 
     repositories {
         mavenCentral()
