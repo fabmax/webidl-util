@@ -229,6 +229,7 @@ class JniNativeGenerator : CodeGenerator() {
 
     private fun IdlInterface.generateGet(attrib: IdlAttribute, w: Writer) {
         w.nativeFunc {
+            (attrib.type as? IdlSimpleType) ?: error("Unsupported type ${attrib.type::class.java.name}")
             val ifPrefix = getDecoratorValue("Prefix", "")
             val natType = attrib.getNativeType(model)
             val returnValue = if (attrib.isStatic) "$ifPrefix$name::${attrib.name}" else "_self->${attrib.name}"
@@ -247,6 +248,7 @@ class JniNativeGenerator : CodeGenerator() {
 
     private fun IdlInterface.generateSet(attrib: IdlAttribute, w: Writer) {
         w.nativeFunc {
+            (attrib.type as? IdlSimpleType) ?: error("Unsupported type ${attrib.type::class.java.name}")
             val ifPrefix = getDecoratorValue("Prefix", "")
             val natType = attrib.getNativeType(model)
             val valueReceiver = if (attrib.isStatic) "$ifPrefix$name::${attrib.name}" else "_self->${attrib.name}"

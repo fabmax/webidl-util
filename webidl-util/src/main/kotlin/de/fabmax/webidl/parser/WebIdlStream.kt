@@ -1,6 +1,8 @@
 package de.fabmax.webidl.parser
 
+import de.fabmax.webidl.model.IdlSimpleType
 import de.fabmax.webidl.model.IdlType
+import de.fabmax.webidl.model.IdlUnionType
 import kotlinx.coroutines.channels.Channel
 import java.util.*
 
@@ -100,16 +102,31 @@ class WebIdlStream {
     }
 
     suspend fun parseType(parser: ElementParser): IdlType {
+        if (buffer.startsWith("(")) {
+            popToken("(", parser)
+            val types = mutableListOf(
+                parseType(parser) as IdlSimpleType
+            )
+            while (popIfPresent("or", parser)) {
+                types += parseType(parser) as IdlSimpleType
+            }
+            popIfPresent(")", parser)
+            return IdlUnionType(types.toList())
+        }
+
         var isArray = false
         var isUnsigned = false
 
         var typeName = popUntilWhitespaceOrEnd(parser)
+            .removeUnionEndToken()
         if (typeName == "unsigned") {
             isUnsigned = true
             typeName = popUntilWhitespaceOrEnd(parser)
+                .removeUnionEndToken()
         }
         if (typeName == "long") {
             val next = pollUntilWhitespaceOrEnd()
+                .removeUnionEndToken()
             if (next == "long" || next == "long[]") {
                 typeName = "long $next"
                 popToken(next, parser)
@@ -137,10 +154,10 @@ class WebIdlStream {
 
             val typeParams = typeName.substringAfter('<').substringBeforeLast('>')
             typeName = typeName.substringBefore("<")
-            return IdlType(typeName, isArray, typeParams.split(',').map { it.trim() })
+            return IdlSimpleType(typeName, isArray, typeParams.split(',').map { it.trim() })
         }
 
-        val type = IdlType(typeName, isArray)
+        val type = IdlSimpleType(typeName, isArray)
         if (!type.isValid()) {
             parser.parserException("Invalid Type: \"$type\"")
         }
@@ -151,6 +168,8 @@ class WebIdlStream {
         private val whitespaceRegex = Regex("\\s+")
     }
 }
+
+private fun String.removeUnionEndToken(): String = substringBefore(")")
 
 private suspend fun whileWithMaxTry(shouldContinue: () -> Boolean, maxAttempts: Int, task: suspend () -> Unit) {
     var attempts = 0

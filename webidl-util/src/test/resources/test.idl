@@ -5,6 +5,7 @@ interface mixin ObjectBase {
 
 [Prefix="someNamespace::", NoDelete]
 interface AnInterface {
+    constructor(long param1 = 10);
     void aFunction(long param1, optional VoidPtr param2);
 
     attribute unsigned long long someAttribute;
@@ -14,6 +15,9 @@ interface AnInterface {
     attribute FrozenArray<any> someFrozenArray;
     attribute Promise<any> somePromise;
     attribute Promise < any > somePromiseWithExtraSpace;
+};
+
+partial interface AnInterface {
 };
 
 [Prefix = "someNamespaceWithSpace::"]
@@ -56,7 +60,8 @@ interface SetLikeInterface {
 };
 
 typedef [Value, AnotherValue] unsigned long ATypeDef;
-typedef sequence<DOMString> ATypeDef2;
+typedef sequence<DOMString?> ATypeDef2;
+typedef (DOMString or ATypeDef) ATypeDef3;
 
 namespace TypeDefs {
     const ATypeDef CONST_1      = 0x0001;

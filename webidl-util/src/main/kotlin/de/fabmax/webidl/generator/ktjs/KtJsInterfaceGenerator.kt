@@ -203,6 +203,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             generateJavadoc(paramDocs, returnDoc, w, withAnnotations = false)
 
             val argsStr = func.parameters.joinToString(", ") { "${it.name}: ${callbackType(it)}" }
+            (func.returnType as? IdlSimpleType) ?: error("Unsupported type ${func.returnType::class.java.name}")
             val retType = if (func.returnType.typeName != "void") {
                 model.ktType(func.returnType, func.hasDecorator(IdlDecorator.NULLABLE))
             } else {
@@ -236,6 +237,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             }
 
             emscriptenAttributes.forEach { attr ->
+                (attr.type as? IdlSimpleType) ?: error("Unsupported type ${attr.type::class.java.name}")
                 w.append("""
                     /**
                      * ${makeTypeDoc(attr.type, attr.decorators)}
@@ -264,6 +266,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                 // function declaration
                 val modifier = if (func.isOverride(this, model)) "override " else ""
                 val argsStr = func.parameters.joinToString(", ") { "${it.name}: ${model.ktType(it.type, it.isNullable())}" }
+                (func.returnType as? IdlSimpleType) ?: error("Unsupported type ${func.returnType::class.java.name}")
                 val retType = if (func.returnType.typeName != "void") {
                     ": ${model.ktType(func.returnType, func.hasDecorator(IdlDecorator.NULLABLE))}"
                 } else {
@@ -333,9 +336,10 @@ class KtJsInterfaceGenerator : CodeGenerator() {
 
         val getSets = emscriptenFunctions.filter { get ->
             get.name.startsWith("get") && get.parameters.isEmpty() && functions.any {
+                (get.returnType as? IdlSimpleType) ?: error("Unsupported type ${get.returnType::class.java.name}")
                 it.name == get.name.replace("get", "set")
                         && it.parameters.size == 1
-                        && it.parameters[0].type.typeName == get.returnType.typeName
+                        && (it.parameters[0].type as? IdlSimpleType)?.typeName == get.returnType.typeName
             }
         }
         getSets.forEach { get ->
@@ -401,13 +405,13 @@ class KtJsInterfaceGenerator : CodeGenerator() {
 
     private fun makeTypeDoc(type: IdlType, decorators: List<IdlDecorator> = emptyList()): String {
         val decoString = when {
-            type.isEnum() -> " (enum)"
+            type is IdlSimpleType && type.isEnum() -> " (enum)"
             decorators.isNotEmpty() -> " ${decorators.joinToString(", ", "(", ")")}"
             else -> ""
         }
         val typeString = when {
-            type.isComplexType -> "WebIDL type: [${type.typeName}]"
-            else -> "WebIDL type: ${type.typeName}"
+            type is IdlSimpleType && type.isComplexType -> "WebIDL type: [${type.typeName}]"
+            else -> "WebIDL type: ${(type as? IdlSimpleType)?.typeName}"
         }
         return "$typeString$decoString"
     }
@@ -429,11 +433,12 @@ class KtJsInterfaceGenerator : CodeGenerator() {
         }
     }
 
-    private fun IdlType.isEnum(): Boolean {
+    private fun IdlSimpleType.isEnum(): Boolean {
         return model.enums.any { it.name == typeName }
     }
 
     private fun IdlModel.ktType(type: IdlType, isNullable: Boolean): String {
+        (type as? IdlSimpleType) ?: error("Unsupported type ${type::class.java.name}")
         return if (enums.any { it.name == type.typeName }) {
             "Int"
         } else {

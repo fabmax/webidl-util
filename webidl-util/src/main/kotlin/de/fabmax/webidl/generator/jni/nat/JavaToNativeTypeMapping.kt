@@ -3,22 +3,25 @@ package de.fabmax.webidl.generator.jni.nat
 import de.fabmax.webidl.model.*
 
 internal fun IdlInterface.getNativeType(model: IdlModel): NativeType {
-    return NativeType(model, IdlType(name, false), isValue = false, isRef = false, isConst = false)
+    return NativeType(model, IdlSimpleType(name, false), isValue = false, isRef = false, isConst = false)
 }
 
 internal fun IdlFunction.getNativeType(model: IdlModel): NativeType {
+    (returnType as? IdlSimpleType) ?: error("Unsupported type ${returnType::class.java.name}")
     return NativeType(model, returnType, hasDecorator(IdlDecorator.VALUE), hasDecorator(IdlDecorator.REF), hasDecorator(IdlDecorator.CONST))
 }
 
 internal fun IdlFunctionParameter.getNativeType(model: IdlModel): NativeType {
+    (type as? IdlSimpleType) ?: error("Unsupported type ${type::class.java.name}")
     return NativeType(model, type, hasDecorator(IdlDecorator.VALUE), hasDecorator(IdlDecorator.REF), hasDecorator(IdlDecorator.CONST))
 }
 
 internal fun IdlAttribute.getNativeType(model: IdlModel): NativeType {
+    (type as? IdlSimpleType) ?: error("Unsupported type ${type::class.java.name}")
     return NativeType(model, type, hasDecorator(IdlDecorator.VALUE), hasDecorator(IdlDecorator.REF), hasDecorator(IdlDecorator.CONST))
 }
 
-internal class NativeType(model: IdlModel, val idlType: IdlType, val isValue: Boolean, val isRef: Boolean, val isConst: Boolean) {
+internal class NativeType(model: IdlModel, val idlType: IdlSimpleType, val isValue: Boolean, val isRef: Boolean, val isConst: Boolean) {
     val prefix = idlType.getPrefix(model)
     val isPrimitive = idlType.isPrimitive()
 
@@ -30,11 +33,11 @@ internal class NativeType(model: IdlModel, val idlType: IdlType, val isValue: Bo
 
     val isEnum = idlType.isEnum(model)
 
-    private fun IdlType.isPrimitive(): Boolean {
+    private fun IdlSimpleType.isPrimitive(): Boolean {
         return typeName in idlPrimitiveTypeMapJni.keys
     }
 
-    private fun IdlType.getPrefix(model: IdlModel): String {
+    private fun IdlSimpleType.getPrefix(model: IdlModel): String {
         return if (isPrimitive) {
             // primitive types have no prefix
             ""
@@ -177,17 +180,22 @@ internal object JavaTypeSignature {
         var signature = ""
         if (receivesAddress) { signature += "J" } // long address
         return signature + func.parameters.joinToString("") {
+            (it.type as? IdlSimpleType) ?: error("Unsupported type ${it.type::class.java.name}")
             getTypeSignature(it.type, model, true)
         }
     }
 
     fun getJavaFunctionSignature(func: IdlFunction, model: IdlModel = func.parentModel!!): String {
-        val paramsSig = func.parameters.joinToString(""){ getTypeSignature(it.type, model, false) }
+        (func.returnType as? IdlSimpleType) ?: error("Unsupported type ${func.returnType::class.java.name}")
+        val paramsSig = func.parameters.joinToString(""){
+            (it.type as? IdlSimpleType) ?: error("Unsupported type ${it.type::class.java.name}")
+            getTypeSignature(it.type, model, false)
+        }
         val returnSig = getTypeSignature(func.returnType, model, false)
         return "($paramsSig)$returnSig"
     }
 
-    private fun getTypeSignature(type: IdlType, model: IdlModel, isFunctionName: Boolean): String {
+    private fun getTypeSignature(type: IdlSimpleType, model: IdlModel, isFunctionName: Boolean): String {
         return if (type.isEnum(model)) {
             "I"
         } else {

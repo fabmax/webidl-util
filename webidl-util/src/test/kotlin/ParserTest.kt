@@ -2,12 +2,15 @@ import de.fabmax.webidl.generator.jni.java.JniJavaGenerator
 import de.fabmax.webidl.generator.jni.nat.JniNativeGenerator
 import de.fabmax.webidl.generator.ktjs.KtJsInterfaceGenerator
 import de.fabmax.webidl.model.IdlDecorator
+import de.fabmax.webidl.model.IdlSimpleType
+import de.fabmax.webidl.model.IdlUnionType
 import de.fabmax.webidl.parser.ParserException
 import de.fabmax.webidl.parser.WebIdlParser
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 
 class ParserTest {
@@ -23,8 +26,8 @@ class ParserTest {
         }
 
         assertTrue(model.dictionaries.size == 1)
-        assertTrue(model.interfaces.size == 6)
-        assertTrue(model.typeDefs.size == 2)
+        assertTrue(model.interfaces.size == 7)
+        assertTrue(model.typeDefs.size == 3)
         assertTrue(model.namespaces.size == 1)
         assertTrue(model.namespaces[0].constants.size == 2)
 
@@ -42,12 +45,22 @@ class ParserTest {
 
         val anInterfaceIndex = 1
         assertEquals("AnInterface", model.interfaces[anInterfaceIndex].name)
+        assertTrue(model.interfaces[anInterfaceIndex].constructors.size == 1)
+        assertTrue(model.interfaces[anInterfaceIndex].constructors[0].parameters.size == 1)
+        assertEquals("param1", model.interfaces[anInterfaceIndex].constructors[0].parameters[0].name)
+        assertEquals("10", model.interfaces[anInterfaceIndex].constructors[0].parameters[0].defaultValue)
+        assertEquals("long", (model.interfaces[anInterfaceIndex].constructors[0].parameters[0].type as IdlSimpleType).typeName)
+        assertFalse(model.interfaces[anInterfaceIndex].isPartial)
         assertTrue(model.interfaces[anInterfaceIndex].functions.size == 1)
         assertEquals("aFunction", model.interfaces[anInterfaceIndex].functions[0].name)
         assertTrue(model.interfaces[anInterfaceIndex].attributes.size == 7)
         assertTrue("readOnlyAttribute", model.interfaces[anInterfaceIndex].attributes[1].isReadonly)
         assertTrue(model.interfaces[anInterfaceIndex].hasDecorator(IdlDecorator.NO_DELETE))
         assertEquals("someNamespace::", model.interfaces[anInterfaceIndex].getDecoratorValue("Prefix", ""))
+
+        val anInterfaceExtensionIndex = 2
+        assertEquals("AnInterface", model.interfaces[anInterfaceExtensionIndex].name)
+        assertTrue(model.interfaces[anInterfaceExtensionIndex].isPartial)
 
         listOf(
             Triple("unsigned long long", null, "someAttribute"),
@@ -57,41 +70,46 @@ class ParserTest {
             Triple("FrozenArray", listOf("any"), "someFrozenArray"),
             Triple("Promise", listOf("any"), "somePromise"),
             Triple("Promise", listOf("any"), "somePromiseWithExtraSpace")
-        ).forEachIndexed { index, (type, parameterType, name) ->
-            assertEquals(type, model.interfaces[anInterfaceIndex].attributes[index].type.typeName)
-            assertEquals(parameterType, model.interfaces[anInterfaceIndex].attributes[index].type.parameterTypes)
+        ).forEachIndexed { index, (expectedType, parameterType, name) ->
+            val actualType = model.interfaces[anInterfaceIndex].attributes[index].type as? IdlSimpleType
+            assertEquals(expectedType, actualType?.typeName)
+            assertEquals(parameterType, actualType?.parameterTypes)
             assertEquals(name, model.interfaces[anInterfaceIndex].attributes[index].name)
         }
 
 
-        val anotherInterfaceIndex = 2
+        val anotherInterfaceIndex = 3
         assertTrue(model.interfaces[anotherInterfaceIndex].superInterfaces.contains(model.interfaces[objectBaseIndex].name))
         assertEquals("someNamespaceWithSpace::", model.interfaces[anotherInterfaceIndex].getDecoratorValue("Prefix", ""))
 
-        val javaErrorCallbackIndex = 4
+        val javaErrorCallbackIndex = 5
         assertEquals("JavaErrorCallback", model.interfaces[javaErrorCallbackIndex].name)
         assertEquals("ErrorCallback", model.interfaces[javaErrorCallbackIndex].getDecoratorValue("JSImplementation", ""))
 
-        val setLikeIndex = 5
+        val setLikeIndex = 6
         assertEquals("SetLikeInterface", model.interfaces[setLikeIndex].name)
         assertNotNull(model.interfaces[setLikeIndex].setLike)
-        assertEquals("DOMString", model.interfaces[setLikeIndex].setLike?.type?.typeName)
+        assertEquals("DOMString", (model.interfaces[setLikeIndex].setLike?.type as? IdlSimpleType)?.typeName)
 
         assertEquals("ATypeDef", model.typeDefs[0].name)
-        assertEquals("unsigned long", model.typeDefs[0].type.typeName)
+        assertEquals("unsigned long", (model.typeDefs[0].type as? IdlSimpleType)?.typeName)
         assertEquals("Value", model.typeDefs[0].decorators[0].key)
         assertEquals("AnotherValue", model.typeDefs[0].decorators[1].key)
 
         assertEquals("ATypeDef2", model.typeDefs[1].name)
-        assertEquals("sequence", model.typeDefs[1].type.typeName)
-        assertEquals("DOMString", model.typeDefs[1].type.parameterTypes!![0])
+        assertEquals("sequence", (model.typeDefs[1].type as? IdlSimpleType)?.typeName)
+        assertEquals("DOMString?", (model.typeDefs[1].type as? IdlSimpleType)?.parameterTypes!![0])
+
+        assertEquals("ATypeDef3", model.typeDefs[2].name)
+        assertEquals("DOMString", (model.typeDefs[2].type as? IdlUnionType)?.types!![0].typeName)
+        assertEquals("ATypeDef", (model.typeDefs[2].type as? IdlUnionType)?.types!![1].typeName)
 
         assertEquals("TypeDefs", model.namespaces[0].name)
         assertEquals("CONST_1", model.namespaces[0].constants[0].name)
-        assertEquals("ATypeDef", model.namespaces[0].constants[0].type.typeName)
+        assertEquals("ATypeDef", (model.namespaces[0].constants[0].type as? IdlSimpleType)?.typeName)
         assertEquals("0x0001", model.namespaces[0].constants[0].defaultValue)
         assertEquals("CONST_2", model.namespaces[0].constants[1].name)
-        assertEquals("ATypeDef", model.namespaces[0].constants[1].type.typeName)
+        assertEquals("ATypeDef", (model.namespaces[0].constants[1].type as? IdlSimpleType)?.typeName)
         assertEquals("0x0002", model.namespaces[0].constants[1].defaultValue)
     }
 

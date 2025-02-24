@@ -6,7 +6,7 @@ class IdlConstant private constructor(builder: Builder) : IdlDecoratedElement(bu
 
     override fun toString(indent: String): String {
         val str = StringBuilder(indent)
-        str.append("const ${type.typeName} $name = $defaultValue;")
+        str.append("const $type $name = $defaultValue;")
         return str.toString()
     }
 

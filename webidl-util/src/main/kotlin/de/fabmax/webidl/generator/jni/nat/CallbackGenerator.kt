@@ -5,6 +5,7 @@ import de.fabmax.webidl.generator.prependIndent
 import de.fabmax.webidl.model.IdlDecorator
 import de.fabmax.webidl.model.IdlInterface
 import de.fabmax.webidl.model.IdlModel
+import de.fabmax.webidl.model.IdlSimpleType
 import java.io.Writer
 
 internal class CallbackGenerator(val model: IdlModel, val platform: String) {
@@ -121,6 +122,7 @@ internal class CallbackGenerator(val model: IdlModel, val platform: String) {
             if (callParams.isNotEmpty()) {
                 callParams = ", $callParams"
             }
+            (cbFunc.returnType as? IdlSimpleType) ?: error("Unsupported type ${cbFunc.returnType::class.java.name}")
 
             val callTypedMethod = when (cbFunc.returnType.typeName) {
                 "boolean" -> "CallBooleanMethod"

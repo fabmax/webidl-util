@@ -1,5 +1,6 @@
 package de.fabmax.webidl.generator.jni.java
 
+import de.fabmax.webidl.model.IdlSimpleType
 import de.fabmax.webidl.model.IdlType
 
 internal class JavaTypeMapping(val idlType: IdlType, val isIdlEnum: Boolean) {
@@ -10,6 +11,7 @@ internal class JavaTypeMapping(val idlType: IdlType, val isIdlEnum: Boolean) {
         get() = internalType != javaType
 
     init {
+        (idlType as? IdlSimpleType) ?: error("Unsupported type ${idlType::class.java.name}")
         when {
             idlType.isPrimitive -> {
                 internalType = JniJavaGenerator.idlPrimitiveTypeMap[idlType.typeName] ?: throw IllegalStateException("Unknown idl type: ${idlType.typeName}")

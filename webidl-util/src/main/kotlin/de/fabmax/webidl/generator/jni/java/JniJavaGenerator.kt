@@ -165,12 +165,14 @@ class JniJavaGenerator : CodeGenerator() {
             }
             idlIf.functions.forEach { func ->
                 if (func.returnType.isComplexType) {
+                    (func.returnType as? IdlSimpleType) ?: error("Unsupported type ${func.returnType::class.java.name}")
                     imports += func.returnType.typeName
                 } else if (func.returnType.isAnyOrVoidPtr) {
                     imports += nativeObject.name
                 }
                 func.parameters.forEach { param ->
                     if (param.type.isComplexType) {
+                        (param.type as? IdlSimpleType) ?: error("Unsupported type ${param.type::class.java.name}")
                         imports += param.type.typeName
                     } else if (param.type.isAnyOrVoidPtr) {
                         imports += nativeObject.name
@@ -179,6 +181,7 @@ class JniJavaGenerator : CodeGenerator() {
             }
             idlIf.attributes.forEach { attrib ->
                 if (attrib.type.isComplexType) {
+                    (attrib.type as? IdlSimpleType) ?: error("Unsupported type ${attrib.type::class.java.name}")
                     imports += attrib.type.typeName
                 } else if (attrib.type.isAnyOrVoidPtr) {
                     imports += nativeObject.name
@@ -277,6 +280,7 @@ class JniJavaGenerator : CodeGenerator() {
                 val defaultReturnVal = if (func.returnType.isVoid) {
                     " "
                 } else if (func.returnType.isPrimitive) {
+                    (func.returnType as? IdlSimpleType) ?: error("Unsupported type ${func.returnType::class.java.name}")
                     val returnVal = when (func.returnType.typeName) {
                         "boolean" -> "false"
                         "float" -> "0.0f"
@@ -517,6 +521,7 @@ class JniJavaGenerator : CodeGenerator() {
     }
 
     private fun generateGet(javaClass: JavaClass, attrib: IdlAttribute, w: Writer) {
+        (attrib.type as? IdlSimpleType) ?: error("Unsupported type ${attrib.type::class.java.name}")
         val javaType = JavaType(attrib.type)
         val methodName = "get${firstCharToUpper(attrib.name)}"
 
@@ -552,6 +557,7 @@ class JniJavaGenerator : CodeGenerator() {
     }
 
     private fun generateSet(javaClass: JavaClass, attrib: IdlAttribute, w: Writer) {
+        (attrib.type as? IdlSimpleType) ?: error("Unsupported type ${attrib.type::class.java.name}")
         val javaType = JavaType(attrib.type)
         val methodName = "set${firstCharToUpper(attrib.name)}"
 
@@ -591,6 +597,7 @@ class JniJavaGenerator : CodeGenerator() {
     }
 
     private fun makeTypeDoc(javaTypeMapping: JavaTypeMapping, decorators: List<IdlDecorator> = emptyList()): String {
+        (javaTypeMapping.idlType as? IdlSimpleType) ?: error("Unsupported type ${javaTypeMapping.idlType::class.java.name}")
         val decoString = when {
             javaTypeMapping.isIdlEnum -> " [enum]"
             decorators.isNotEmpty() -> " $decorators"
@@ -624,7 +631,10 @@ class JniJavaGenerator : CodeGenerator() {
         javaEnum.generateSource(createOutFileWriter(javaEnum.path))
     }
 
-    private fun JavaType(idlType: IdlType) = JavaTypeMapping(idlType, typeMap[idlType.typeName] is JavaEnumClass)
+    private fun JavaType(idlType: IdlType): JavaTypeMapping {
+        (idlType as? IdlSimpleType) ?: error("Unsupported type ${idlType::class.java.name}")
+        return JavaTypeMapping(idlType, typeMap[idlType.typeName] is JavaEnumClass)
+    }
 
     companion object {
         const val PLATFORM_CHECKS_NAME = "PlatformChecks"

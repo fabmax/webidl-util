@@ -3,11 +3,12 @@ package de.fabmax.webidl.model
 class IdlFunctionParameter private constructor(builder: Builder) : IdlDecoratedElement(builder) {
     val type = builder.type
     val isOptional = builder.isOptional
+    val defaultValue = builder.defaultValue
 
-    var parentFunction: IdlFunction? = null
+    var parentFunction: IdlDecoratedElement? = null
         private set
 
-    fun finishModel(parentFunction: IdlFunction) {
+    fun finishModel(parentFunction: IdlDecoratedElement) {
         parentModel = parentFunction.parentModel
         this.parentFunction = parentFunction
     }
@@ -39,6 +40,7 @@ class IdlFunctionParameter private constructor(builder: Builder) : IdlDecoratedE
 
     class Builder(name: String, var type: IdlType) : IdlDecoratedElement.Builder(name) {
         var isOptional = false
+        var defaultValue: String? = null
 
         fun build() = IdlFunctionParameter(this)
     }

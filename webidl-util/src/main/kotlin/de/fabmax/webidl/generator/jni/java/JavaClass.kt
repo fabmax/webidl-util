@@ -4,6 +4,7 @@ import de.fabmax.webidl.generator.prependIndent
 import de.fabmax.webidl.model.IdlAttribute
 import de.fabmax.webidl.model.IdlFunction
 import de.fabmax.webidl.model.IdlInterface
+import de.fabmax.webidl.model.IdlSimpleType
 import de.fabmax.webidl.parser.CppAttributeComment
 import de.fabmax.webidl.parser.CppClassComments
 import de.fabmax.webidl.parser.CppMethodComment
@@ -45,6 +46,7 @@ internal class JavaClass(idlElement: IdlInterface, idlPkg: String, packagePrefix
             return false
         }
         return parameters.zip(idlMethod.parameters).all { (cpp, idl) ->
+            (idl.type as? IdlSimpleType) ?: error("Unsupported type ${idl.type::class.java.name}")
             cpp.name == idl.name || cpp.type.contains(idl.type.typeName)
         }
     }

@@ -8,6 +8,7 @@ class InterfaceParser(parserState: WebIdlParser.ParserState) : ElementParser(par
     lateinit var builder: IdlInterface.Builder
 
     override suspend fun parse(): String {
+        val isPartial = popIfPresent("partial")
         popToken("interface")
         val isMixin = popIfPresent("mixin")
 
@@ -15,6 +16,7 @@ class InterfaceParser(parserState: WebIdlParser.ParserState) : ElementParser(par
         builder = IdlInterface.Builder(interfaceName.first)
         builder.sourcePackage = parserState.sourcePackage
         builder.isMixin = isMixin
+        builder.isPartial = isPartial
         parserState.popDecorators(builder)
         parserState.parentParser<RootParser>().builder.addInterface(builder)
 
