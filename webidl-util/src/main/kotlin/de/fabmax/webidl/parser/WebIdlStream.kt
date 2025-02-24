@@ -118,15 +118,15 @@ class WebIdlStream {
         var isUnsigned = false
 
         var typeName = popUntilWhitespaceOrEnd(parser)
-            .removeUnionToken()
+            .removeUnionEndToken()
         if (typeName == "unsigned") {
             isUnsigned = true
             typeName = popUntilWhitespaceOrEnd(parser)
-                .removeUnionToken()
+                .removeUnionEndToken()
         }
         if (typeName == "long") {
             val next = pollUntilWhitespaceOrEnd()
-                .removeUnionToken()
+                .removeUnionEndToken()
             if (next == "long" || next == "long[]") {
                 typeName = "long $next"
                 popToken(next, parser)
@@ -169,7 +169,7 @@ class WebIdlStream {
     }
 }
 
-private fun String.removeUnionToken(): String = substringBefore(")")
+private fun String.removeUnionEndToken(): String = substringBefore(")")
 
 private suspend fun whileWithMaxTry(shouldContinue: () -> Boolean, maxAttempts: Int, task: suspend () -> Unit) {
     var attempts = 0
