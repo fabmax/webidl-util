@@ -256,8 +256,18 @@ class JniJavaGenerator : CodeGenerator() {
             private native long _${javaClass.name}();
             
             // Destructor
+            public void destroy() {
+                if (address == 0L) {
+                    throw new IllegalStateException(this + " is already deleted");
+                }
+                if (isExternallyAllocated) {
+                    throw new IllegalStateException(this + " is externally allocated and cannot be manually destroyed");
+                }
+                _destroy(address);
+                address = 0L;
+            }
+            private static native void _destroy(long address);
         """.trimIndent().prependIndent(4)).append("\n\n")
-        generateDestructor(this)
 
         val nonCtorFunctions = functions.filter { it.name != name }
         if (nonCtorFunctions.isNotEmpty()) {
@@ -315,6 +325,7 @@ class JniJavaGenerator : CodeGenerator() {
     }
 
     private fun IdlInterface.generate(javaClass: JavaClass) = javaClass.generateSource(createOutFileWriter(javaClass.path)) {
+        val rawFunctions = mutableListOf<String>()
         val ctorFunctions = functions.filter { it.name == name }
 
         if (javaClass.comments != null) {
@@ -326,28 +337,28 @@ class JniJavaGenerator : CodeGenerator() {
         if (hasDecorator(IdlDecorator.STACK_ALLOCATABLE)) {
             append("    // Placed Constructors\n\n")
             ctorFunctions.forEach { ctor ->
-                generatePlacedConstructor(javaClass, ctor, this)
+                generatePlacedConstructor(javaClass, ctor, this, rawFunctions)
             }
         }
 
         if (ctorFunctions.isNotEmpty()) {
             append("    // Constructors\n\n")
             ctorFunctions.forEach { ctor ->
-                generateConstructor(javaClass, ctor, this)
+                generateConstructor(javaClass, ctor, this, rawFunctions)
             }
         }
 
         if (!hasDecorator(IdlDecorator.NO_DELETE)) {
             append("    // Destructor\n\n")
-            generateDestructor(this)
+            generateDestructor(this, rawFunctions)
         }
 
         if (attributes.isNotEmpty()) {
             append("    // Attributes\n\n")
             attributes.forEach { attrib ->
-                generateGet(javaClass, attrib, this)
+                generateGet(javaClass, attrib, this, rawFunctions)
                 if (!attrib.isReadonly) {
-                    generateSet(javaClass, attrib, this)
+                    generateSet(javaClass, attrib, this, rawFunctions)
                 }
             }
         }
@@ -356,9 +367,11 @@ class JniJavaGenerator : CodeGenerator() {
         if (nonCtorFunctions.isNotEmpty()) {
             append("    // Functions\n\n")
             nonCtorFunctions.forEach { func ->
-                generateFunction(javaClass, func, this)
+                generateFunction(javaClass, func, this, rawFunctions)
             }
         }
+
+        generateNativeFunctions(this, rawFunctions)
     }
 
     private fun IdlFunctionParameter.isNullable(): Boolean {
@@ -369,7 +382,7 @@ class JniJavaGenerator : CodeGenerator() {
         return hasDecorator(IdlDecorator.NULLABLE)
     }
 
-    private fun IdlInterface.generatePlacedConstructor(javaClass: JavaClass, ctorFunc: IdlFunction, w: Writer) {
+    private fun IdlInterface.generatePlacedConstructor(javaClass: JavaClass, ctorFunc: IdlFunction, w: Writer, rawFunctions: MutableList<String>) {
         val nativeToJavaParams = ctorFunc.parameters.zip(ctorFunc.parameters.map { JavaType(it.type) })
         var nativeArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
         var javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
@@ -397,7 +410,7 @@ class JniJavaGenerator : CodeGenerator() {
             generateJavadoc(pDocs, "Stack allocated object of $name", w)
             w.append("""
                 public static $name createAt(long address$javaArgs) {$platformCheck
-                    __placement_new_${ctorFunc.name}(address$callArgs);
+                    Raw.${ctorFunc.name}_placed(address$callArgs);
                     $name createdObj = wrapPointer(address);
                     createdObj.isExternallyAllocated = true;
                     return createdObj;
@@ -414,18 +427,18 @@ class JniJavaGenerator : CodeGenerator() {
             generateJavadoc(pDocs, "Stack allocated object of $name", w)
             w.append("""
                 public static <T> $name createAt(T allocator, Allocator<T> allocate$javaArgs) {
-                    long address = allocate.on(allocator, ALIGNOF, SIZEOF); 
-                    __placement_new_${ctorFunc.name}(address$callArgs);
+                    long address = allocate.on(allocator, ALIGNOF, SIZEOF);
+                    Raw.${ctorFunc.name}_placed(address$callArgs);
                     $name createdObj = wrapPointer(address);
                     createdObj.isExternallyAllocated = true;
                     return createdObj;
                 }
             """.trimIndent().prependIndent(4)).append("\n\n")
         }
-        w.append("    private static native void __placement_new_${ctorFunc.name}(long address$nativeArgs);\n\n")
+        rawFunctions += "public static native void ${ctorFunc.name}_placed(long address$nativeArgs);"
     }
 
-    private fun IdlInterface.generateConstructor(javaClass: JavaClass, ctorFunc: IdlFunction, w: Writer) {
+    private fun IdlInterface.generateConstructor(javaClass: JavaClass, ctorFunc: IdlFunction, w: Writer, rawFunctions: MutableList<String>) {
         val nativeToJavaParams = ctorFunc.parameters.zip(ctorFunc.parameters.map { JavaType(it.type) })
         val nativeArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.internalType} ${nat.name}" }
         val javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
@@ -435,13 +448,13 @@ class JniJavaGenerator : CodeGenerator() {
         generateFunctionComment(javaClass, ctorFunc, w)
         w.append("""
             public $name($javaArgs) {$platformCheck
-                address = _${ctorFunc.name}($callArgs);
+                address = Raw.${ctorFunc.name}($callArgs);
             }
-            private static native long _${ctorFunc.name}($nativeArgs);
         """.trimIndent().prependIndent(4)).append("\n\n")
+        rawFunctions += "public static native long ${ctorFunc.name}($nativeArgs);"
     }
 
-    private fun generateDestructor(w: Writer) {
+    private fun generateDestructor(w: Writer, rawFunctions: MutableList<String>) {
         w.append("""
             public void destroy() {
                 if (address == 0L) {
@@ -450,14 +463,14 @@ class JniJavaGenerator : CodeGenerator() {
                 if (isExternallyAllocated) {
                     throw new IllegalStateException(this + " is externally allocated and cannot be manually destroyed");
                 }
-                _delete_native_instance(address);
+                Raw.destroy(address);
                 address = 0L;
             }
-            private static native long _delete_native_instance(long address);
         """.trimIndent().prependIndent(4)).append("\n\n")
+        rawFunctions += "public static native void destroy(long address);"
     }
 
-    private fun generateFunction(javaClass: JavaClass, func: IdlFunction, w: Writer) {
+    private fun generateFunction(javaClass: JavaClass, func: IdlFunction, w: Writer, rawFunctions: MutableList<String>) {
         val nativeToJavaParams = func.parameters.zip(func.parameters.map { JavaType(it.type) })
         val staticMod = if (func.isStatic) " static" else ""
         val javaArgs = nativeToJavaParams.joinToString { (nat, java) -> "${java.javaType} ${nat.name}" }
@@ -479,10 +492,10 @@ class JniJavaGenerator : CodeGenerator() {
         generateFunctionComment(javaClass, func, w)
         w.append("""
             ${deprecated}public$staticMod ${returnType.javaType} ${func.name}($javaArgs) {$nullCheck$platformCheck
-                ${returnType.boxedReturn("_${func.name}($callArgs)")};
+                ${returnType.boxedReturn("Raw.${func.name}($callArgs)")};
             }
-            private static native ${returnType.internalType} _${func.name}($nativeArgs);
         """.trimIndent().prependIndent(4)).append("\n\n")
+        rawFunctions += "public static native ${returnType.internalType} ${func.name}($nativeArgs);"
     }
 
     private fun generateFunctionComment(javaClass: JavaClass, func: IdlFunction, w: Writer) {
@@ -520,7 +533,7 @@ class JniJavaGenerator : CodeGenerator() {
         }
     }
 
-    private fun generateGet(javaClass: JavaClass, attrib: IdlAttribute, w: Writer) {
+    private fun generateGet(javaClass: JavaClass, attrib: IdlAttribute, w: Writer, rawFunctions: MutableList<String>) {
         (attrib.type as? IdlSimpleType) ?: error("Unsupported type ${attrib.type::class.java.name}")
         val javaType = JavaType(attrib.type)
         val methodName = "get${firstCharToUpper(attrib.name)}"
@@ -550,13 +563,13 @@ class JniJavaGenerator : CodeGenerator() {
 
         w.append("""
             public$staticMod ${javaType.javaType} $methodName($arrayModPub) {$nullCheck$platformCheck
-                ${javaType.boxedReturn("_$methodName($addressCall$arrayCallMod)")};
+                ${javaType.boxedReturn("Raw.$methodName($addressCall$arrayCallMod)")};
             }
-            private static native ${javaType.internalType} _$methodName($addressSig$arrayModPriv);
         """.trimIndent().prependIndent(4)).append("\n\n")
+        rawFunctions += "public static native ${javaType.internalType} $methodName($addressSig$arrayModPriv);"
     }
 
-    private fun generateSet(javaClass: JavaClass, attrib: IdlAttribute, w: Writer) {
+    private fun generateSet(javaClass: JavaClass, attrib: IdlAttribute, w: Writer, rawFunctions: MutableList<String>) {
         (attrib.type as? IdlSimpleType) ?: error("Unsupported type ${attrib.type::class.java.name}")
         val javaType = JavaType(attrib.type)
         val methodName = "set${firstCharToUpper(attrib.name)}"
@@ -590,10 +603,10 @@ class JniJavaGenerator : CodeGenerator() {
 
         w.append("""
             public$staticMod void $methodName($arrayModPub${javaType.javaType} value) {$nullCheck$platformCheck
-                _$methodName($addressCall$arrayCallMod, ${javaType.unbox("value", attrib.isNullable())});
+                Raw.$methodName($addressCall$arrayCallMod, ${javaType.unbox("value", attrib.isNullable())});
             }
-            private static native void _$methodName($nativeSig);
         """.trimIndent().prependIndent(4)).append("\n\n")
+        rawFunctions += "public static native void $methodName($nativeSig);"
     }
 
     private fun makeTypeDoc(javaTypeMapping: JavaTypeMapping, decorators: List<IdlDecorator> = emptyList()): String {
@@ -624,6 +637,12 @@ class JniJavaGenerator : CodeGenerator() {
             }
             w.append("     */\n")
         }
+    }
+
+    private fun generateNativeFunctions(w: Writer, nativeSignatures: MutableList<String>) {
+        w.appendLine("    public static class Raw {")
+        nativeSignatures.forEach { w.appendLine("        $it") }
+        w.appendLine("    }")
     }
 
     private fun IdlEnum.generate(javaEnum: JavaEnumClass) {

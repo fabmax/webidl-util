@@ -109,7 +109,7 @@ class JniNativeGenerator : CodeGenerator() {
             JNIEXPORT jlong JNICALL ${nativeFunName(sourcePackage, name, name)}(JNIEnv* env, jobject obj) {
                 return (jlong) new $name(env, obj);
             }
-            JNIEXPORT void JNICALL ${nativeFunName(sourcePackage, name, "delete_native_instance")}(JNIEnv*, jclass, jlong address) {
+            JNIEXPORT void JNICALL ${nativeFunName(sourcePackage, name, "destroy")}(JNIEnv*, jclass, jlong address) {
                 delete ${natType.castJniToNative("address")};
             }
         """.trimIndent()).append("\n")
@@ -150,7 +150,7 @@ class JniNativeGenerator : CodeGenerator() {
             val funcArgs = func.parameters.joinToString(", ") { it.getNativeType(model).castJniToNative(it.name) }
 
             returnType = natReturnType.jniType()
-            functionName = JavaTypeSignature.getJniNativeFunctionName(func, packagePrefix, platform)
+            functionName = JavaTypeSignature.getJniNativeFunctionName(func, packagePrefix, platform, isInnerClass = true)
             isReceivingAddress = !func.isStatic
             isUsingEnv = func.parameters.any { it.type.isString } || func.returnType.isString
             extraArgs = generateFuncArgs(func)
@@ -186,7 +186,7 @@ class JniNativeGenerator : CodeGenerator() {
             val ctorArgs = func.parameters.joinToString(", ") { it.getNativeType(model).castJniToNative(it.name) }
 
             returnType = "jlong"
-            functionName = nativeFunName(sourcePackage, name, "_placement_new_${func.name}", suffix)
+            functionName = nativeFunName(sourcePackage, name, "${func.name}_placed", nameSuffix = suffix, isInnerClass = true)
             isUsingEnv = func.parameters.any { it.type.isString }
             isReceivingAddress = false
             extraArgs = ", jlong _placement_address" + generateFuncArgs(func)
@@ -200,7 +200,7 @@ class JniNativeGenerator : CodeGenerator() {
             val ctorArgs = func.parameters.joinToString(", ") { it.getNativeType(model).castJniToNative(it.name) }
 
             returnType = "jlong"
-            functionName = JavaTypeSignature.getJniNativeFunctionName(func, packagePrefix, platform)
+            functionName = JavaTypeSignature.getJniNativeFunctionName(func, packagePrefix, platform, isInnerClass = true)
             isUsingEnv = func.parameters.any { it.type.isString }
             isReceivingAddress = false
             extraArgs = generateFuncArgs(func)
@@ -222,7 +222,7 @@ class JniNativeGenerator : CodeGenerator() {
         val natType = getNativeType(model)
         w.nativeFunc {
             returnType = "void"
-            functionName = nativeFunName(sourcePackage, name, "delete_native_instance")
+            functionName = nativeFunName(sourcePackage, name, "destroy", isInnerClass = true)
             body = "delete ${natType.castJniToNative(NativeFuncRenderer.ADDRESS)};"
         }
     }
@@ -236,7 +236,7 @@ class JniNativeGenerator : CodeGenerator() {
             val arrayValueMod = if (attrib.type.isArray) "[${NativeFuncRenderer.ARRAY_INDEX}]" else ""
 
             returnType = natType.jniType()
-            functionName = nativeFunName(this@generateGet, attrib, "get")
+            functionName = nativeFunName(this@generateGet, attrib, "get", isInnerClass = true)
             isUsingEnv = attrib.type.isString
             isReceivingAddress = !attrib.isStatic
             isReceivingArrayIndex = attrib.type.isArray
@@ -255,7 +255,7 @@ class JniNativeGenerator : CodeGenerator() {
             val arrayValueMod = if (attrib.type.isArray) "[${NativeFuncRenderer.ARRAY_INDEX}]" else ""
 
             returnType = "void"
-            functionName = nativeFunName(this@generateSet, attrib, "set")
+            functionName = nativeFunName(this@generateSet, attrib, "set", isInnerClass = true)
             isUsingEnv = attrib.type.isString
             isReceivingAddress = !attrib.isStatic
             isReceivingArrayIndex = attrib.type.isArray
@@ -275,18 +275,24 @@ class JniNativeGenerator : CodeGenerator() {
         }
     }
 
-    private fun nativeFunName(idlIf: IdlInterface, attrib: IdlAttribute, funPrefix: String) =
-        nativeFunName(idlIf.sourcePackage, idlIf.name, "$funPrefix${firstCharToUpper(attrib.name)}")
+    private fun nativeFunName(idlIf: IdlInterface, attrib: IdlAttribute, funPrefix: String, isInnerClass: Boolean = false) =
+        nativeFunName(idlIf.sourcePackage, idlIf.name, "$funPrefix${firstCharToUpper(attrib.name)}", isInnerClass = isInnerClass)
 
-    private fun nativeFunName(srcPkg: String, className: String, functionName: String, nameSuffix: String = ""): String {
+    private fun nativeFunName(srcPkg: String, className: String, functionName: String, nameSuffix: String = "", isInnerClass: Boolean = false): String {
         var name = packagePrefix
         if (name.isNotEmpty()) { name += "." }
         name += srcPkg
         if (name.isNotEmpty() && !name.endsWith(".")) { name += "." }
-        name += "$className._$functionName"
-        name = name.replace("_", "_1")
-        name = name.replace(".", "_")
-        return "Java_$name$nameSuffix"
+
+        val natName = if (!isInnerClass) {
+            name += "$className._$functionName"
+            name.replace("_", "_1").replace(".", "_")
+        } else {
+            val cls = (name + className).replace("_", "_1").replace(".", "_") + "_00024Raw"
+            val func = functionName.replace("_", "_1").replace(".", "_")
+            "${cls}_${func}"
+        }
+        return "Java_$natName$nameSuffix"
     }
 
     private fun IdlFunction.getFunctionSuffix(isOverloaded: Boolean, isCtor: Boolean = false): String {

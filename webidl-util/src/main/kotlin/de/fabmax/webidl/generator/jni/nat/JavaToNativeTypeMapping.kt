@@ -152,7 +152,7 @@ internal class NativeType(model: IdlModel, val idlType: IdlSimpleType, val isVal
 
 internal object JavaTypeSignature {
 
-    fun getJniNativeFunctionName(func: IdlFunction, packagePrefix: String, platform: String): String {
+    fun getJniNativeFunctionName(func: IdlFunction, packagePrefix: String, platform: String, isInnerClass: Boolean = false): String {
         val parentIf = func.parentInterface ?: throw IllegalStateException("parentInterface of function ${func.name} not set")
         val parentModel = parentIf.parentModel ?: throw IllegalStateException("parentModel of interface ${parentIf.name} not set")
 
@@ -160,11 +160,15 @@ internal object JavaTypeSignature {
         if (name.isNotEmpty()) { name += "." }
         name += parentIf.sourcePackage
         if (name.isNotEmpty() && !name.endsWith(".")) { name += "." }
-        name += "${parentIf.name}._${func.name}"
-        name = name
-            .replace("_", "_1")
-            .replace(".", "_")
 
+        val natName = if (!isInnerClass) {
+            name += "${parentIf.name}._${func.name}"
+            name.replace("_", "_1").replace(".", "_")
+        } else {
+            val cls = (name + parentIf.name).replace("_", "_1").replace(".", "_") + "_00024Raw"
+            val func = func.name.replace("_", "_1").replace(".", "_")
+            "${cls}_${func}"
+        }
         val isCtor = func.name == parentIf.name
         val isOverloaded = parentIf.functions.count { it.matchesPlatform(platform) && it.name == func.name } > 1
         val nameSuffix = if (isOverloaded) {
@@ -172,8 +176,7 @@ internal object JavaTypeSignature {
         } else {
             ""
         }
-
-        return "Java_$name$nameSuffix"
+        return "Java_$natName$nameSuffix"
     }
 
     fun getFunctionTypeSuffix(func: IdlFunction, receivesAddress: Boolean, model: IdlModel): String {
