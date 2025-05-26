@@ -28,7 +28,7 @@ a plane library, which can be used for advanced use-cases.
 Apply the gradle plugin to your project:
 ```kotlin
 plugins {
-    id("de.fabmax.webidl-util") version "0.10.0"
+    id("de.fabmax.webidl-util") version "0.10.1"
 }
 ```
 Then configure it to generate JNI bindings:
@@ -79,7 +79,7 @@ The library is published on maven central:
 
 ```
 dependencies {
-    implementation("de.fabmax:webidl-util:0.10.0")
+    implementation("de.fabmax:webidl-util:0.10.1")
 }
 ```
 
