@@ -22,7 +22,7 @@ jobs:
       - name: Build everything
         run: ./gradlew build
       - name: Publish library
-        run: ./gradlew publish
+        run: ./gradlew :webidl-util:publishToSonatype closeAndReleaseSonatypeStagingRepository
         env:
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}

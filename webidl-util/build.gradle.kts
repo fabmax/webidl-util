@@ -21,10 +21,10 @@ tasks.test {
 }
 
 tasks.register<Jar>("javadocJar") {
-    dependsOn("dokkaJavadoc")
+    dependsOn("dokkaGenerate")
     group = "documentation"
     archiveClassifier.set("javadoc")
-    from("${projectDir}/build/dokka/javadoc")
+    from("${projectDir}/build/dokka/html")
 }
 
 publishing {
@@ -62,26 +62,20 @@ publishing {
         }
     }
 
-    if (System.getenv("MAVEN_USERNAME") != null) {
-        repositories {
-            maven {
-                url = if (version.toString().endsWith("-SNAPSHOT")) {
-                    uri("https://oss.sonatype.org/content/repositories/snapshots")
-                } else {
-                    uri("https://oss.sonatype.org/service/local/staging/deploy/maven2")
-                }
-                credentials {
-                    username = System.getenv("MAVEN_USERNAME")
-                    password = System.getenv("MAVEN_PASSWORD")
-                }
+    repositories {
+        maven {
+            url = if (version.toString().endsWith("-SNAPSHOT")) {
+                uri("https://central.sonatype.com/repository/maven-snapshots/")
+            } else {
+                uri("https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/")
             }
         }
-
-        signing {
-            val privateKey = System.getenv("GPG_PRIVATE_KEY")
-            val password = System.getenv("GPG_PASSWORD")
-            useInMemoryPgpKeys(privateKey, password)
-            sign(publishing.publications["mavenKotlin"])
-        }
     }
+}
+
+signing {
+    val privateKey = System.getenv("GPG_PRIVATE_KEY")
+    val password = System.getenv("GPG_PASSWORD")
+    useInMemoryPgpKeys(privateKey, password)
+    sign(publishing.publications["mavenKotlin"])
 }
