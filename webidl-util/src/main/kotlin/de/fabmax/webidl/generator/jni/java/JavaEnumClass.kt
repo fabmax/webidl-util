@@ -62,15 +62,46 @@ internal class JavaEnumClass(idlElement: IdlEnum, idlPkg: String, packagePrefix:
         }
 
         w.append("""
-                public static $name forValue(int value) {
-                    for (int i = 0; i < values().length; i++) {
-                        if (values()[i].value == value) {
-                            return values()[i];
+            private static final $name[] enumLookup;
+            private static final boolean isIndexedLookup;
+            
+            static {
+                var minNativeVal = Integer.MAX_VALUE;
+                var maxNativeVal = 0;
+                var enumValues = values();
+                for (int i = 0; i < enumValues.length; i++) {
+                    minNativeVal = Math.min(minNativeVal, enumValues[i].value);
+                    maxNativeVal = Math.max(maxNativeVal, enumValues[i].value);
+                }
+                if (minNativeVal >= 0 && maxNativeVal < 256) {
+                    isIndexedLookup = true;
+                    enumLookup = new $name[maxNativeVal + 1];
+                    for (int i = 0; i < enumValues.length; i++) {
+                        enumLookup[enumValues[i].value] = enumValues[i];
+                    }
+                } else {
+                    isIndexedLookup = false;
+                    enumLookup = enumValues;
+                }
+            }
+            
+            public static $name forValue(int value) {
+                if (isIndexedLookup) {
+                    var enumValue = enumLookup[value];
+                    if (enumValue == null) {
+                        throw new IllegalArgumentException("Unknown value for enum ${name}: " + value);
+                    }
+                    return enumValue;
+                } else {
+                    for (int i = 0; i < enumLookup.length; i++) {
+                        if (enumLookup[i].value == value) {
+                            return enumLookup[i];
                         }
                     }
                     throw new IllegalArgumentException("Unknown value for enum ${name}: " + value);
                 }
-            """.trimIndent().prependIndent(4)).append("\n\n")
+            }
+        """.trimIndent().prependIndent(4)).append("\n")
     }
 
     fun generateSource(w: Writer) {
