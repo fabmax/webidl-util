@@ -62,44 +62,36 @@ internal class JavaEnumClass(idlElement: IdlEnum, idlPkg: String, packagePrefix:
         }
 
         w.append("""
-            private static final $name[] enumLookup;
-            private static final boolean isIndexedLookup;
+            private static final int LUT_SIZE = 256;
+            private static final $name[] enumValues = values();
+            private static final $name[] enumLut = new $name[LUT_SIZE];
             
             static {
-                var minNativeVal = Integer.MAX_VALUE;
-                var maxNativeVal = 0;
-                var enumValues = values();
                 for (int i = 0; i < enumValues.length; i++) {
-                    minNativeVal = Math.min(minNativeVal, enumValues[i].value);
-                    maxNativeVal = Math.max(maxNativeVal, enumValues[i].value);
-                }
-                if (minNativeVal >= 0 && maxNativeVal < 256) {
-                    isIndexedLookup = true;
-                    enumLookup = new $name[maxNativeVal + 1];
-                    for (int i = 0; i < enumValues.length; i++) {
-                        enumLookup[enumValues[i].value] = enumValues[i];
+                    final $name it = enumValues[i];
+                    if (it.value >= 0 && it.value < LUT_SIZE) {
+                        enumLut[it.value] = it;
                     }
-                } else {
-                    isIndexedLookup = false;
-                    enumLookup = enumValues;
                 }
             }
             
             public static $name forValue(int value) {
-                if (isIndexedLookup) {
-                    var enumValue = enumLookup[value];
-                    if (enumValue == null) {
-                        throw new IllegalArgumentException("Unknown value for enum ${name}: " + value);
-                    }
-                    return enumValue;
+                $name enumValue = null;
+                if (value >= 0 && value < LUT_SIZE) {
+                    enumValue = enumLut[value];
                 } else {
-                    for (int i = 0; i < enumLookup.length; i++) {
-                        if (enumLookup[i].value == value) {
-                            return enumLookup[i];
+                    for (int i = 0; i < enumValues.length; i++) {
+                        final $name it = enumValues[i];
+                        if (it.value == value) {
+                            enumValue = it;
+                            break;
                         }
                     }
-                    throw new IllegalArgumentException("Unknown value for enum ${name}: " + value);
                 }
+                if (enumValue == null) {
+                    throw new IllegalArgumentException("Invalid ordinal value for enum ${name}: " + value);
+                }
+                return enumValue;
             }
         """.trimIndent().prependIndent(4)).append("\n")
     }

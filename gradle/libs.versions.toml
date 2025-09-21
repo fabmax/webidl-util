@@ -7,6 +7,6 @@ kotlin-coroutines = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutine
 kotlin-test-junit = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit", version.ref = "kotlin" }
 
 [plugins]
-nexusPublish = { id = "io.github.gradle-nexus.publish-plugin", version = "2.0.0" }
+mavenPublish = { id = "com.vanniktech.maven.publish", version = "0.34.0" }
 kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 dokka = { id = "org.jetbrains.dokka", version = "2.0.0" }
