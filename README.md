@@ -1,7 +1,7 @@
 # webidl-util
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
-[![Maven Central](https://img.shields.io/maven-central/v/de.fabmax/webidl-util.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22de.fabmax%22%20AND%20a:%22webidl-util%22)
+[![Maven Central](https://img.shields.io/maven-central/v/de.fabmax/webidl-util.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/de.fabmax/webidl-util)
 
 A parser and code-generator for WebIDL files.
 
