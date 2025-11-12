@@ -164,7 +164,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             if (ktPkg.isNotEmpty()) {
                 w.writeHeader()
                 w.append("""
-                    @file:Suppress("UnsafeCastFromDynamic", "ClassName", "FunctionName", "UNUSED_PARAMETER", "unused")
+                    @file:Suppress("UnsafeCastFromDynamic", "ClassName", "FunctionName", "UNUSED_PARAMETER", "unused", "INLINE_CLASS_IN_EXTERNAL_DECLARATION_WARNING", "NOTHING_TO_INLINE")
 
                     package $ktPkg
                 """.trimIndentEmptyBlanks()).append("\n\n")
@@ -354,6 +354,16 @@ class KtJsInterfaceGenerator : CodeGenerator() {
         if (getSets.isNotEmpty()) {
             w.append('\n')
         }
+
+        val arrayGetSets = emscriptenAttributes.filter { it.type is IdlSimpleType && it.type.isArray }
+        arrayGetSets.forEach { attr ->
+            val ktType = model.ktType(attr.type, attr.isNullable())
+            w.append("inline fun $name.get${attr.name.capitalizeFirstChar()}(index: Int) = get_${attr.name}(index)\n")
+            w.append("inline fun $name.set${attr.name.capitalizeFirstChar()}(index: Int, value: ${ktType}) = set_${attr.name}(index, value)\n")
+        }
+        if (arrayGetSets.isNotEmpty()) {
+            w.append('\n')
+        }
     }
 
     private fun IdlFunction.isOverride(parentIf: IdlInterface, model: IdlModel): Boolean {
@@ -391,15 +401,16 @@ class KtJsInterfaceGenerator : CodeGenerator() {
 
     private fun IdlEnum.generate(w: Writer) {
         if (values.isNotEmpty()) {
-            w.write("object $name {\n")
+            w.write("value class $name private constructor(val value: Int) {\n")
+            w.write("    companion object {\n")
             values.forEach { enumVal ->
                 var clampedName = enumVal
                 if (enumVal.contains("::")) {
                     clampedName = enumVal.substring(enumVal.indexOf("::") + 2)
                 }
-                w.write("    val $clampedName: Int get() = $moduleLocation._emscripten_enum_${name}_$clampedName()\n")
+                w.write("        val $clampedName: $name = $name($moduleLocation._emscripten_enum_${name}_$clampedName())\n")
             }
-            w.write("}\n\n")
+            w.write("    }\n}\n\n")
         }
     }
 
@@ -440,7 +451,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
     private fun IdlModel.ktType(type: IdlType, isNullable: Boolean): String {
         (type as? IdlSimpleType) ?: error("Unsupported type ${type::class.java.name}")
         return if (enums.any { it.name == type.typeName }) {
-            "Int"
+            type.typeName
         } else {
             val isPrimitive = type.typeName in idlTypeMap.keys
             var typeStr = idlTypeMap.getOrDefault(type.typeName, type.typeName)
@@ -450,6 +461,8 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             typeStr
         }
     }
+
+    private fun String.capitalizeFirstChar(): String = replaceFirstChar { it.uppercaseChar()}
 
     companion object {
         val idlTypeMap = mapOf(

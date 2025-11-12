@@ -10,7 +10,7 @@ dependencies {
 }
 
 kotlin {
-    jvmToolchain(8)
+    jvmToolchain(11)
 }
 
 tasks.test {
@@ -38,7 +38,7 @@ mavenPublishing {
         name.set("webidl-util")
         description.set("A parser and code-generator for WebIDL files.")
         inceptionYear.set("2020")
-        url.set("https://github.com/username/mylibrary/")
+        url.set("https://github.com/fabmax/webidl-util/")
         licenses {
             license {
                 name.set("The Apache License, Version 2.0")
@@ -48,9 +48,9 @@ mavenPublishing {
         }
         developers {
             developer {
-                id.set("username")
-                name.set("User Name")
-                url.set("https://github.com/username/")
+                id.set("fabmax")
+                name.set("Max Thiele")
+                url.set("https://github.com/fabmax/")
             }
         }
         scm {

@@ -31,9 +31,9 @@ class WebIdlUtilPlugin : Plugin<Project> {
         target.createGenerateCompactWebIdlTask(extension)
     }
 
-    private fun Project.createGenerateJniJavaBindingsTask(extension: WebIdlUtilExtension) = task("generateJniJavaBindings").apply {
-        group = "webidl"
-        doLast {
+    private fun Project.createGenerateJniJavaBindingsTask(extension: WebIdlUtilExtension) = tasks.register("generateJniJavaBindings") {
+        it.group = "webidl"
+        it.doLast {
             val genJni = extension.getGenerateJniBindings()
             val outputDirJava = genJni.javaClassesOutputDirectory.asFile.get()
             val modelPath = extension.modelPath.asFile.get()
@@ -48,9 +48,9 @@ class WebIdlUtilPlugin : Plugin<Project> {
         }
     }
 
-    private fun Project.createGenerateJniNativeBindingsTask(extension: WebIdlUtilExtension) = task("generateJniNativeBindings").apply {
-        group = "webidl"
-        doLast {
+    private fun Project.createGenerateJniNativeBindingsTask(extension: WebIdlUtilExtension) = tasks.register("generateJniNativeBindings") {
+        it.group = "webidl"
+        it.doLast {
             val genJni = extension.getGenerateJniBindings()
             val outputFileNative = genJni.nativeGlueCodeOutputFile.asFile.get()
             val modelPath = extension.modelPath.asFile.get()
@@ -65,9 +65,9 @@ class WebIdlUtilPlugin : Plugin<Project> {
         }
     }
 
-    private fun Project.createGenerateKotlinJsBindingsTask(extension: WebIdlUtilExtension) = task("generateKotlinJsBindings").apply {
-        group = "webidl"
-        doLast {
+    private fun Project.createGenerateKotlinJsBindingsTask(extension: WebIdlUtilExtension) = tasks.register("generateKotlinJsBindings") {
+        it.group = "webidl"
+        it.doLast {
             val genInterfaces = extension.getGenerateKotlinJsBindings()
             val outputDir = genInterfaces.outputDirectory.asFile.get()
             val modelPath = extension.modelPath.asFile.get()
@@ -82,9 +82,9 @@ class WebIdlUtilPlugin : Plugin<Project> {
         }
     }
 
-    private fun Project.createGenerateCompactWebIdlTask(extension: WebIdlUtilExtension) = task("generateCompactWebIdl").apply {
-        group = "webidl"
-        doLast {
+    private fun Project.createGenerateCompactWebIdlTask(extension: WebIdlUtilExtension) = tasks.register("generateCompactWebIdl") {
+        it.group = "webidl"
+        it.doLast {
             val genWebIdl = extension.getGenerateCompactWebIdl()
             val outputPath = genWebIdl.outputFile.asFile.get()
             val modelPath = extension.modelPath.asFile.get()
