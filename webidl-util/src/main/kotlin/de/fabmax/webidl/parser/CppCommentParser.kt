@@ -9,7 +9,7 @@ object CppCommentParser {
     fun parseComments(file: File): List<CppComments> {
         return if (file.isDirectory) {
             file.walk()
-                .filter { it.name.endsWith(".h", true) }
+                .filter { it.name.endsWith(".h", true) || it.name.endsWith(".hpp", true) }
                 .flatMap { parseCommentsFile(it) }
                 .toList()
         } else {
@@ -33,18 +33,19 @@ object CppCommentParser {
 
         val modeStack = mutableListOf(Mode.ROOT)
         val mode: Mode get() = modeStack.last()
-        var latestCommentString: String? = null
+        var latestCommentString: DocPart? = null
 
-        val blockDelimiters = listOf("/**", "/*", "{", "}", ";", "//")
+        val blockDelimiters = listOf("/**", "/*", "{", "}", ";", "///", "//")
         val commentDelimiters = listOf("*/")
         val lineCommentDelimiters = listOf("\n")
-        val enumDelimiters = listOf(",", "}", "/**", "/*", "//")
+        val enumDelimiters = listOf(",", "}", "/**", "/*", "///", "//")
         val delimiters = mapOf(
             Mode.ROOT to blockDelimiters,
             Mode.NAMESPACE to blockDelimiters,
             Mode.CLASS to blockDelimiters,
             Mode.INNER_BLOCK to blockDelimiters,
             Mode.DOC_COMMENT to commentDelimiters,
+            Mode.LINE_DOC_COMMENT to lineCommentDelimiters,
             Mode.LINE_COMMENT to lineCommentDelimiters,
             Mode.MULTI_LINE_COMMENT to commentDelimiters,
             Mode.ENUM to enumDelimiters,
@@ -70,12 +71,11 @@ object CppCommentParser {
                 val delims = delimiters[mode]!!
                 val (part, delim) = tokenizer.readUntil(delims)
 
-                //println("  : $mode > ${part.lines().joinToString("\\n")}")
-
                 when (modeStack.last()) {
                     Mode.ROOT -> processRoot(part, delim)
                     Mode.DOC_COMMENT -> processDocComment(part)
                     Mode.LINE_COMMENT -> processLineComment(part)
+                    Mode.LINE_DOC_COMMENT -> processLineDocComment(part)
                     Mode.NAMESPACE -> processNamespace(part, delim)
                     Mode.CLASS -> processClass(part, delim)
                     Mode.ENUM -> processEnum(part, delim)
@@ -83,6 +83,12 @@ object CppCommentParser {
                     Mode.MULTI_LINE_COMMENT -> modeStack.removeLast()
                 }
             } while (delim != null)
+        }
+
+        private fun consumeDocComment(): String? {
+            val text = latestCommentString?.text
+            latestCommentString = null
+            return text
         }
 
         fun popMode(): Mode {
@@ -96,6 +102,10 @@ object CppCommentParser {
 
         fun processComment(delim: String?): Boolean {
             return when (delim) {
+                "///" -> {
+                    modeStack += Mode.LINE_DOC_COMMENT
+                    true
+                }
                 "//" -> {
                     modeStack += Mode.LINE_COMMENT
                     true
@@ -167,7 +177,7 @@ object CppCommentParser {
             val superType = part.substringAfter(":", "")
 
             if (delim?.endsWith("{") == true) {
-                val cppClass = CppClassComments(namespacePath.joinToString("::"), className, superType, latestCommentString)
+                val cppClass = CppClassComments(namespacePath.joinToString("::"), className, superType, consumeDocComment())
                 classes += cppClass
                 nestedClassPath += className
                 lastCommentElement = cppClass
@@ -176,7 +186,7 @@ object CppCommentParser {
 
         private fun enterEnum(enumName: String) {
             val prefixedName = (currentClass?.className ?: "") + enumName
-            val cppEnum = CppEnumComments(namespacePath.joinToString("::"), prefixedName, latestCommentString ?: currentClass?.comment)
+            val cppEnum = CppEnumComments(namespacePath.joinToString("::"), prefixedName, consumeDocComment() ?: currentClass?.comment)
             enums += cppEnum
             lastCommentElement = cppEnum
         }
@@ -194,7 +204,7 @@ object CppCommentParser {
             if (part.isNotBlank()) {
                 val valueName = part.substringBefore("=").trim()
                 val value = part.substringAfter("=", "").trim()
-                val enumValue = CppEnumComment(valueName, value, latestCommentString)
+                val enumValue = CppEnumComment(valueName, value, consumeDocComment())
                 currentEnum?.enumValues?.put(valueName, enumValue)
                 lastCommentElement = enumValue
             }
@@ -207,10 +217,21 @@ object CppCommentParser {
         fun processDocComment(part: String) {
             val commentLines = part.trimIndent().lines()
             if (commentLines.any { it.isNotBlank() }) {
-                latestCommentString = commentLines
+                val text = commentLines
                     .dropWhile { it.isBlank() }
                     .dropLastWhile { it.isBlank() }
                     .joinToString("\n")
+                latestCommentString = DocPart(text, DocType.Block)
+            }
+            popMode()
+        }
+
+        fun processLineDocComment(part: String) {
+            val commentLine = part.trim().removePrefix("///").trim()
+            if (commentLine.isNotBlank()) {
+                val prev = latestCommentString
+                val prevText = if (prev?.type == DocType.DocLine) "${prev.text}\n" else ""
+                latestCommentString = DocPart("$prevText$commentLine", DocType.DocLine)
             }
             popMode()
         }
@@ -227,7 +248,7 @@ object CppCommentParser {
                         }
                     }
                 } else {
-                    latestCommentString = trimmed
+                    latestCommentString = DocPart(trimmed, DocType.Line)
                 }
             }
             popMode()
@@ -253,7 +274,7 @@ object CppCommentParser {
                     CppMethodParameter(pName, pType, isConst, isOptional)
                 }
             val funComments = currentClass?.methods?.getOrPut(funName) { mutableListOf() }
-            val cppMethod = CppMethodComment(funName, retType, params, latestCommentString)
+            val cppMethod = CppMethodComment(funName, retType, params, consumeDocComment())
             funComments?.add(cppMethod)
             lastCommentElement = cppMethod
         }
@@ -278,7 +299,7 @@ object CppCommentParser {
 
         fun parseClassMemberAttribute(part: String) {
             val (attrName, type) = splitNameAndType(part)
-            val cppAttrib = CppAttributeComment(attrName, type, latestCommentString)
+            val cppAttrib = CppAttributeComment(attrName, type, consumeDocComment())
             currentClass?.attributes?.put(attrName, cppAttrib)
             lastCommentElement = cppAttrib
         }
@@ -302,6 +323,7 @@ object CppCommentParser {
             ROOT,
             MULTI_LINE_COMMENT,
             DOC_COMMENT,
+            LINE_DOC_COMMENT,
             LINE_COMMENT,
             NAMESPACE,
             CLASS,
@@ -382,3 +404,11 @@ data class CppEnumComment(
     val value: String,
     override var comment: String?
 ) : CommentElement
+
+data class DocPart(val text: String, val type: DocType)
+
+enum class DocType {
+    Block,
+    DocLine,
+    Line,
+}
