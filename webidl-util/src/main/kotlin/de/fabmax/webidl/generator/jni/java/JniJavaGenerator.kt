@@ -85,7 +85,6 @@ class JniJavaGenerator : CodeGenerator() {
             if (!f.exists()) {
                 System.err.println("Comment path does not exist: ${f.absolutePath}")
             } else {
-                println("Parsing comments from .h files in $f")
                 CppCommentParser.parseComments(f).forEach { comments[it.className] = it }
             }
         }

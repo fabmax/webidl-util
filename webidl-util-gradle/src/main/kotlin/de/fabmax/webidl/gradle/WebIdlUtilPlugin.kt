@@ -8,6 +8,7 @@ import de.fabmax.webidl.parser.WebIdlParser
 import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.file.FileCollection
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Nested
@@ -43,6 +44,8 @@ class WebIdlUtilPlugin : Plugin<Project> {
                 outputDirectory = outputDirJava.path
                 genJni.packagePrefix.orNull?.let { packagePrefix = it }
                 genJni.onClassLoadStatement.orNull?.let { onClassLoad = it }
+                genJni.nativeIncludeDirs.get().mapNotNull { it.path }.forEach { parseCommentsFromDirectories += it }
+                @Suppress("DEPRECATION")
                 genJni.nativeIncludeDir.asFile.orNull?.let { parseCommentsFromDirectories += it.path }
             }.generate(model)
         }
@@ -136,7 +139,9 @@ interface GenerateJniBindings {
     val nativeGlueCodeOutputFile: RegularFileProperty
     val packagePrefix: Property<String>
     val nativePlatform: Property<String>
+    @Deprecated("Use nativeIncludeDirs instead")
     val nativeIncludeDir: RegularFileProperty
+    val nativeIncludeDirs: Property<FileCollection>
     val onClassLoadStatement: Property<String>
 }
 
