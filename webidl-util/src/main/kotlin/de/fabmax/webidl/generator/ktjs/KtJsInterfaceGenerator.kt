@@ -46,6 +46,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
         this.model = model
         deleteDirectory(File(outputDirectory))
         generateLoader(model)
+        generatePrototypeWrappers(model)
         for (pkg in model.collectPackages()) {
             val (ktPkg, file) = makeFileNameAndPackage(pkg, model)
             model.generatePackage(pkg, ktPkg, file.path)
@@ -107,9 +108,9 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                     @JsName("$moduleMemberName")
                     internal var $moduleMemberName: dynamic = null
                     private val ${moduleMemberName}Promise = $modulePromiseName()
-                    internal var physxDeferred = ${moduleMemberName}Promise.asDeferred()
+                    internal var ${moduleMemberName}Deferred = ${moduleMemberName}Promise.asDeferred()
 
-                    val isLoaded: Boolean get() = physxDeferred.isCompleted
+                    val isLoaded: Boolean get() = ${moduleMemberName}Deferred.isCompleted
                     private var isLoading = false
                     private val onLoadListeners = mutableListOf<() -> Unit>()
 
@@ -138,10 +139,40 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                     }
                     
                     fun destroy(nativeObject: Any) {
-                        physXJs.destroy(nativeObject)
+                        ${moduleMemberName}.destroy(nativeObject)
                     }
                 }
             """.trimIndentEmptyBlanks())
+        }
+    }
+
+    private fun generatePrototypeWrappers(model: IdlModel) {
+        model.interfaces.forEach {
+            println("${it.name}: funcs: ${it.functions.all { it.isStatic }}, attrs: ${it.attributes.all { it.isStatic }}, no ctors: ${it.constructors.isEmpty()}")
+        }
+        val staticClasses = model.interfaces.filter {
+            it.functions.size + it.attributes.size > 0 &&
+            it.functions.all { f -> f.isStatic } &&
+            it.attributes.all { a -> a.isStatic } &&
+            it.constructors.isEmpty()
+        }.sortedBy { it.name }
+        if (staticClasses.isEmpty()) {
+            return
+        }
+
+        createOutFileWriter("prototypes/Prototypes.kt").use { w ->
+            val pkgPre = if (packagePrefix.isNotEmpty()) "${packagePrefix}." else ""
+            w.write("@file:Suppress(\"UNCHECKED_CAST_TO_EXTERNAL_INTERFACE\", \"unused\")\n\npackage ${pkgPre}prototypes\n\n")
+            val loaderName = "${model.name}Loader"
+            w.appendLine("import ${pkgPre}${loaderName}")
+            staticClasses.forEach { staticClass ->
+                w.appendLine("import ${pkgPre}${staticClass.name}")
+            }
+            w.appendLine()
+
+            staticClasses.forEach { staticClass ->
+                w.appendLine("val ${staticClass.name}: ${staticClass.name} get() = ${loaderName}.${moduleMemberName}.${staticClass.name}.prototype as ${staticClass.name}")
+            }
         }
     }
 
