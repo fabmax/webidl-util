@@ -102,7 +102,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                 import kotlin.js.Promise
 
                 @JsModule("$moduleName")
-                internal external val $modulePromiseName: () -> Promise<dynamic>
+                private external val $modulePromiseName: () -> Promise<dynamic>
 
                 object $localClsName {
                     @JsName("$moduleMemberName")
@@ -111,25 +111,12 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                     internal var ${moduleMemberName}Deferred = ${moduleMemberName}Promise.asDeferred()
 
                     val isLoaded: Boolean get() = ${moduleMemberName}Deferred.isCompleted
-                    private var isLoading = false
-                    private val onLoadListeners = mutableListOf<() -> Unit>()
 
-                    fun loadModule() {
-                        if (!isLoading) {
-                            isLoading = true
-                            ${moduleMemberName}Promise.then { module: dynamic ->
-                                $moduleMemberName = module
-                                onLoadListeners.forEach { it() }
-                            }
+                    suspend fun loadModule() {
+                        if (!isLoaded) {
+                            ${moduleMemberName}Promise.then { module: dynamic -> $moduleMemberName = module }
                         }
-                    }
-                    
-                    fun addOnLoadListener(listener: () -> Unit) {
-                        if (isLoaded) {
-                            listener()
-                        } else {
-                            onLoadListeners += listener
-                        }
+                        ${moduleMemberName}Deferred.await()
                     }
                     
                     fun checkIsLoaded() {
@@ -147,9 +134,6 @@ class KtJsInterfaceGenerator : CodeGenerator() {
     }
 
     private fun generatePrototypeWrappers(model: IdlModel) {
-        model.interfaces.forEach {
-            println("${it.name}: funcs: ${it.functions.all { it.isStatic }}, attrs: ${it.attributes.all { it.isStatic }}, no ctors: ${it.constructors.isEmpty()}")
-        }
         val staticClasses = model.interfaces.filter {
             it.functions.size + it.attributes.size > 0 &&
             it.functions.all { f -> f.isStatic } &&
