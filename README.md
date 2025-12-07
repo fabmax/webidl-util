@@ -28,7 +28,7 @@ a plane library, which can be used for advanced use-cases.
 Apply the gradle plugin to your project:
 ```kotlin
 plugins {
-    id("de.fabmax.webidl-util") version "0.10.3"
+    id("de.fabmax.webidl-util") version "0.10.5"
 }
 ```
 Then configure it to generate JNI bindings:
@@ -45,8 +45,10 @@ webidl {
 
         // optional package prefix for the generated Java classes
         packagePrefix = "com.example"
-        // optional directory with C++ header files to parse documentation strings from
-        nativeIncludeDir = file("${projectDir}/src/jsMain/kotlin/physx")
+        // optional directories with C++ header files to parse documentation strings from
+        nativeIncludeDirs = files(
+            file("path/to/include/")
+        )
         // optional statement to execute in each generated class' static block
         //  this is particularly useful to call loader code, which loads the corresponding native lib
         onClassLoadStatement = "System.out.println(\"class loaded\")"
@@ -65,9 +67,9 @@ webidl {
         // required: where to generate the Kotlin interfaces
         outputDirectory = file("${projectDir}/src/jsMain/kotlin")
         // required: name of the JS module
-        moduleName = "physx-js-webidl"
+        moduleName = "js-module-name"
         // required: name of the JS Promise providing the loaded module
-        modulePromiseName = "PhysX"
+        modulePromiseName = "Module"
         // optional package prefix for the generated Kotlin interfaces
         packagePrefix = "com.example"
     }
@@ -79,7 +81,7 @@ The library is published on maven central:
 
 ```
 dependencies {
-    implementation("de.fabmax:webidl-util:0.10.3")
+    implementation("de.fabmax:webidl-util:0.10.5")
 }
 ```
 
