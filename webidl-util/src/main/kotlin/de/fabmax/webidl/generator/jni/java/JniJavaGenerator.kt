@@ -525,10 +525,12 @@ class JniJavaGenerator : CodeGenerator() {
 
     private fun generateAttributeComment(comment: CppAttributeComment, attr: IdlAttribute, w: Writer) {
         val docStr = DoxygenToJavadoc.makeJavadocString(comment.comment ?: "", attr.parentInterface, null)
-        w.write(docStr.prependIndent(4))
-        w.write("\n")
-        if (docStr.contains("@deprecated")) {
-            w.write("    @Deprecated\n")
+        if (docStr.isNotBlank()) {
+            w.write(docStr.prependIndent(4))
+            w.write("\n")
+            if (docStr.contains("@deprecated")) {
+                w.write("    @Deprecated\n")
+            }
         }
     }
 

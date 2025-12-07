@@ -15,7 +15,7 @@ object DoxygenToJavadoc {
         idlClass: IdlInterface?,
         idlFunction: IdlFunction? = null
     ): String {
-        val javadocStr = StringBuilder("/**\n")
+        val body = mutableListOf<String>()
 
         var wasBlank = false
         var removeBlock = false
@@ -60,16 +60,19 @@ object DoxygenToJavadoc {
             }
 
             if (wasBlank && doc.isNotBlank() && !doc.startsWith("@")) {
-                javadocStr.append(" * <p>\n")
+                body += "<p>"
             }
             wasBlank = doc.isBlank()
             if (!wasBlank) {
-                doc.lines().forEach {
-                    javadocStr.append(" * $it\n")
-                }
+                body += doc.lines()
             }
         }
-        return javadocStr.append(" */").toString()
+
+        return if (body.any { it.isNotBlank() }) {
+            "/**\n" + body.joinToString("\n").prependIndent(" * ") + "\n */"
+        } else {
+            ""
+        }
     }
 
     private fun String.makeHtmlSafe(): String {

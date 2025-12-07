@@ -26,7 +26,7 @@ internal class JavaClass(idlElement: IdlInterface, idlPkg: String, packagePrefix
 
     fun getMethodComment(method: IdlFunction): CppMethodComment? {
         val comments = this.comments ?: return null
-        val funcs = comments.methods[method.name]?.filter { it.comment != null } ?: return null
+        val funcs = comments.methods[method.name]?.filter { !it.comment.isNullOrBlank() } ?: return null
 
         val bestFunc = funcs.find { it.matchesParameters(method) }
         return if (bestFunc == null && funcs.isNotEmpty()) {
