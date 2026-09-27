@@ -89,6 +89,12 @@ class KtJsInterfaceGenerator : CodeGenerator() {
         .joinToString("\n") { it.ifBlank { "" } }
 
     private fun generateLoader(model: IdlModel) {
+        generateExpectLoader(model)
+        generateActualLoader(model, "js")
+        generateActualLoader(model, "wasmJs")
+    }
+
+    private fun generateExpectLoader(model: IdlModel) {
         val localClsName = firstCharToUpper("${model.name}Loader")
         moduleMemberName = firstCharToLower(model.name)
         loaderClassName = localClsName
@@ -97,38 +103,68 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             if (packagePrefix.isNotEmpty()) {
                 w.write("\npackage $packagePrefix\n\n")
             }
+            w.write("""
+                import kotlin.js.JsAny
+
+                internal expect object $localClsName {
+                    internal val $moduleMemberName: JsAny
+                    val isLoaded: Boolean
+                    suspend fun loadModule()
+                }
+                
+                sealed external interface DestroyableNative : JsAny
+                
+                expect fun DestroyableNative.destroy()
+            """.trimIndentEmptyBlanks())
+        }
+    }
+
+    private fun generateActualLoader(model: IdlModel, platform: String) {
+        val localClsName = firstCharToUpper("${model.name}Loader")
+        moduleMemberName = firstCharToLower(model.name)
+        loaderClassName = localClsName
+        createOutFileWriter("$localClsName.$platform.kt").use { w ->
+            w.writeHeader()
+            if (packagePrefix.isNotEmpty()) {
+                w.write("\npackage $packagePrefix\n\n")
+            }
             w.write("""   
-                import kotlinx.coroutines.asDeferred             
+                import kotlinx.coroutines.await       
+                import kotlin.js.JsAny
+                import kotlin.js.JsModule
                 import kotlin.js.Promise
+                import kotlin.js.js
 
                 @JsModule("$moduleName")
-                private external val $modulePromiseName: () -> Promise<dynamic>
+                private external val $modulePromiseName: () -> Promise<JsAny>
 
-                object $localClsName {
-                    @JsName("$moduleMemberName")
-                    internal var $moduleMemberName: dynamic = null
+                actual object $localClsName {
+                    private var ${moduleMemberName}Module: JsAny? = null
                     private val ${moduleMemberName}Promise = $modulePromiseName()
-                    internal var ${moduleMemberName}Deferred = ${moduleMemberName}Promise.asDeferred()
+                    private var _isLoaded = false
+                    actual val isLoaded: Boolean get() = _isLoaded
 
-                    val isLoaded: Boolean get() = ${moduleMemberName}Deferred.isCompleted
+                    internal actual val $moduleMemberName: JsAny get() = requireNotNull(${moduleMemberName}Module) {
+                        "Module '$moduleName' is not loaded. Call loadModule() first"
+                    }
 
-                    suspend fun loadModule() {
+                    actual suspend fun loadModule() {
                         if (!isLoaded) {
-                            ${moduleMemberName}Promise.then { module: dynamic -> $moduleMemberName = module }
+                            ${moduleMemberName}Promise.then<JsAny> { ${moduleMemberName}Module = it; it }
                         }
-                        ${moduleMemberName}Deferred.await()
+                        ${moduleMemberName}Promise.await<JsAny>()
+                        _isLoaded = true
                     }
                     
                     fun checkIsLoaded() {
                         if (!isLoaded) {
-                            throw IllegalStateException("Module '$moduleName' is not loaded. Call loadModule() first and wait for loading to be finished.")
+                            throw IllegalStateException("Module '$moduleName' is not loaded. Call loadModule() first.")
                         }
                     }
-                    
-                    fun destroy(nativeObject: Any) {
-                        ${moduleMemberName}.destroy(nativeObject)
-                    }
                 }
+                
+                private fun destroyNative(module: JsAny, obj: DestroyableNative): Unit = js("module.destroy(obj)")
+                actual fun DestroyableNative.destroy() = destroyNative(${localClsName}.${moduleMemberName}, this)
             """.trimIndentEmptyBlanks())
         }
     }
@@ -148,6 +184,8 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             val pkgPre = if (packagePrefix.isNotEmpty()) "${packagePrefix}." else ""
             w.write("@file:Suppress(\"UNCHECKED_CAST_TO_EXTERNAL_INTERFACE\", \"unused\")\n\npackage ${pkgPre}prototypes\n\n")
             val loaderName = "${model.name}Loader"
+            w.appendLine("import kotlin.js.JsAny")
+            w.appendLine("import kotlin.js.js")
             w.appendLine("import ${pkgPre}${loaderName}")
             staticClasses.forEach { staticClass ->
                 w.appendLine("import ${pkgPre}${staticClass.name}")
@@ -155,7 +193,9 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             w.appendLine()
 
             staticClasses.forEach { staticClass ->
-                w.appendLine("val ${staticClass.name}: ${staticClass.name} get() = ${loaderName}.${moduleMemberName}.${staticClass.name}.prototype as ${staticClass.name}")
+                w.appendLine("val ${staticClass.name}: ${staticClass.name} = ${staticClass.name}($moduleLocation)")
+                w.appendLine("private fun ${staticClass.name}(module: JsAny): ${staticClass.name} = js(\"module.${staticClass.name}.prototype\")")
+                w.appendLine()
             }
         }
     }
@@ -179,9 +219,12 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             if (ktPkg.isNotEmpty()) {
                 w.writeHeader()
                 w.append("""
-                    @file:Suppress("UnsafeCastFromDynamic", "ClassName", "FunctionName", "UNUSED_PARAMETER", "unused", "INLINE_CLASS_IN_EXTERNAL_DECLARATION_WARNING", "NOTHING_TO_INLINE")
+                    @file:Suppress("ClassName", "FunctionName", "UNUSED_PARAMETER", "unused", "NOTHING_TO_INLINE")
 
                     package $ktPkg
+                    
+                    import kotlin.js.JsAny
+                    import kotlin.js.js
                 """.trimIndentEmptyBlanks()).append("\n\n")
                 interfaces.forEach {
                     if (it.hasDecorator(IdlDecorator.JS_IMPLEMENTATION)) {
@@ -232,9 +275,14 @@ class KtJsInterfaceGenerator : CodeGenerator() {
     }
 
     private fun IdlInterface.generate(model: IdlModel, w: Writer) {
-        w.write("external interface $name")
+        var destroyMarker = ""
+        if (!hasDecorator(IdlDecorator.NO_DELETE)) {
+            destroyMarker = ", DestroyableNative"
+        }
+
+        w.write("external interface $name : JsAny$destroyMarker")
         if (superInterfaces.isNotEmpty()) {
-            w.write(" : ${superInterfaces.joinToString(", ")}")
+            w.write(", ${superInterfaces.joinToString(", ")}")
         }
 
         val nonCtorFuns = emscriptenFunctions.filter { it.name != name }
@@ -295,14 +343,12 @@ class KtJsInterfaceGenerator : CodeGenerator() {
         w.write("\n\n")
         generateExtensionConstructor(w)
         generateExtensionPointerWrapper(w)
-        if (!hasDecorator(IdlDecorator.NO_DELETE)) {
-            generateExtensionDestructor(w)
-        }
         generateExtensionAttributes(w)
+        generateExtensionEnumFuns(w)
     }
 
     private fun IdlInterface.generateExtensionConstructor(w: Writer) {
-        emscriptenFunctions.filter { it.name == name }.forEach { ctor ->
+        emscriptenFunctions.filter { it.isCtor }.forEach { ctor ->
             // basic javadoc with some extended type info
             val paramDocs = mutableMapOf<String, String>()
             ctor.parameters.forEach { param -> paramDocs[param.name] = makeTypeDoc(param.type, param.decorators) }
@@ -311,7 +357,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             // extension constructor function
             val argsStr = ctor.parameters.joinToString(", ", transform = { "${it.name}: ${model.ktType(it.type, it.isNullable())}" })
             val argNames = ctor.parameters.joinToString(", ", transform = { it.name })
-            val argsWithModule = (if (argsStr.isEmpty()) "" else "$argsStr, ") + "_module: dynamic = $moduleLocation"
+            val argsWithModule = (if (argsStr.isEmpty()) "" else "$argsStr, ") + "_module: JsAny = $moduleLocation"
             w.append("""
                 fun $name($argsWithModule): $name = js("new _module.$name($argNames)")
             """.trimIndentEmptyBlanks()).append("\n\n")
@@ -320,15 +366,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
 
     private fun IdlInterface.generateExtensionPointerWrapper(w: Writer) {
         w.append("""
-            fun ${name}FromPointer(ptr: Int, _module: dynamic = $moduleLocation): $name = js("_module.wrapPointer(ptr, _module.${name})")
-        """.trimIndentEmptyBlanks()).append("\n\n")
-    }
-
-    private fun IdlInterface.generateExtensionDestructor(w: Writer) {
-        w.append("""
-            fun $name.destroy() {
-                $loaderClassName.destroy(this)
-            }
+            fun ${name}FromPointer(ptr: Int, _module: JsAny = $moduleLocation): $name = js("_module.wrapPointer(ptr, _module.${name})")
         """.trimIndentEmptyBlanks()).append("\n\n")
     }
 
@@ -340,10 +378,18 @@ class KtJsInterfaceGenerator : CodeGenerator() {
         }
         gets.forEach { get ->
             val attribName = firstCharToLower(get.name.substring(3))
-            w.append("""
-                val $name.$attribName
-                    get() = ${get.name}()
-            """.trimIndentEmptyBlanks()).append("\n")
+            if (get.returnType.isEnum) {
+                val typeName = get.returnType.simpleTypeName
+                w.append("""
+                    val $name.$attribName: $typeName
+                        get() = $typeName.forValue(${get.name}())
+                """.trimIndentEmptyBlanks()).append("\n")
+            } else {
+                w.append("""
+                    val $name.$attribName
+                        get() = ${get.name}()
+                """.trimIndentEmptyBlanks()).append("\n")
+            }
         }
         if (gets.isNotEmpty()) {
             w.append('\n')
@@ -360,24 +406,67 @@ class KtJsInterfaceGenerator : CodeGenerator() {
         getSets.forEach { get ->
             val attribName = firstCharToLower(get.name.substring(3))
             val setName = "s${get.name.substring(1)}"
-            w.append("""
-                var $name.$attribName
-                    get() = ${get.name}()
-                    set(value) { $setName(value) }
-            """.trimIndentEmptyBlanks()).append("\n")
+            if (get.returnType.isEnum) {
+                val typeName = get.returnType.simpleTypeName
+                w.append("""
+                    var $name.$attribName: $typeName
+                        get() = $typeName.forValue(${get.name}())
+                        set(value) { $setName(value.value) }
+                """.trimIndentEmptyBlanks()).append("\n")
+            } else {
+                w.append("""
+                    var $name.$attribName
+                        get() = ${get.name}()
+                        set(value) { $setName(value) }
+                """.trimIndentEmptyBlanks()).append("\n")
+            }
         }
         if (getSets.isNotEmpty()) {
-            w.append('\n')
+            w.appendLine()
         }
 
         val arrayGetSets = emscriptenAttributes.filter { it.type is IdlSimpleType && it.type.isArray }
         arrayGetSets.forEach { attr ->
             val ktType = model.ktType(attr.type, attr.isNullable())
-            w.append("inline fun $name.get${attr.name.capitalizeFirstChar()}(index: Int) = get_${attr.name}(index)\n")
-            w.append("inline fun $name.set${attr.name.capitalizeFirstChar()}(index: Int, value: ${ktType}) = set_${attr.name}(index, value)\n")
+            w.appendLine("inline fun $name.get${attr.name.capitalizeFirstChar()}(index: Int) = get_${attr.name}(index)")
+            w.appendLine("inline fun $name.set${attr.name.capitalizeFirstChar()}(index: Int, value: ${ktType}) = set_${attr.name}(index, value)")
         }
         if (arrayGetSets.isNotEmpty()) {
-            w.append('\n')
+            w.appendLine()
+        }
+
+        val enumAttrs = emscriptenAttributes.filter { it.type.isEnum && !it.isStatic }
+        enumAttrs.forEach { attr ->
+            val typeName = (attr.type as IdlSimpleType).typeName
+            if (attr.isReadonly) {
+                w.appendLine("val $name.${attr.name}Enum: $typeName get() = $typeName.forValue(${attr.name})")
+            } else {
+                w.appendLine("var $name.${attr.name}Enum: $typeName")
+                w.appendLine("    get() = $typeName.forValue(${attr.name})")
+                w.appendLine("    set(value) { ${attr.name} = value.value }")
+            }
+        }
+        if (enumAttrs.isNotEmpty()) {
+            w.appendLine()
+        }
+    }
+
+    private fun IdlInterface.generateExtensionEnumFuns(w: Writer) {
+        val funs = emscriptenFunctions.filter { func ->
+            !func.isCtor && func.parameters.any { it.type.isEnum }
+        }
+        funs.forEach { func ->
+            val argsStr = func.parameters.joinToString(", ", transform = { "${it.name}: ${model.ktType(it.type, it.isNullable(), enumsAsInts = false)}" })
+            val argNames = func.parameters.joinToString(", ", transform = { if (it.type.isEnum) "${it.name}.value" else it.name })
+            if (func.returnType.isEnum) {
+                val typeName = func.returnType.simpleTypeName
+                w.appendLine("fun $name.${func.name}($argsStr) = $typeName.forValue(${func.name}($argNames))")
+            } else {
+                w.appendLine("fun $name.${func.name}($argsStr) = ${func.name}($argNames)")
+            }
+        }
+        if (funs.isNotEmpty()) {
+            w.appendLine()
         }
     }
 
@@ -416,6 +505,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
 
     private fun IdlEnum.generate(w: Writer) {
         if (values.isNotEmpty()) {
+            val enumVals = mutableListOf<String>()
             w.write("value class $name private constructor(val value: Int) {\n")
             w.write("    companion object {\n")
             values.forEach { enumVal ->
@@ -423,15 +513,24 @@ class KtJsInterfaceGenerator : CodeGenerator() {
                 if (enumVal.contains("::")) {
                     clampedName = enumVal.substring(enumVal.indexOf("::") + 2)
                 }
-                w.write("        val $clampedName: $name = $name($moduleLocation._emscripten_enum_${name}_$clampedName())\n")
+                w.write("        val $clampedName: $name = $name(${name}_$clampedName($moduleLocation))\n")
+                enumVals += clampedName
             }
+            w.appendLine("        fun forValue(value: Int) = when(value) {")
+            enumVals.forEach { w.appendLine("            $it.value -> $it") }
+            w.appendLine("            else -> error(\"Invalid enum value \$value for enum $name\")")
+            w.appendLine("        }")
             w.write("    }\n}\n\n")
+            enumVals.forEach {
+                w.appendLine("private fun ${name}_$it(module: JsAny): Int = js(\"module._emscripten_enum_${name}_$it()\")")
+            }
+            w.appendLine()
         }
     }
 
     private fun makeTypeDoc(type: IdlType, decorators: List<IdlDecorator> = emptyList()): String {
         val decoString = when {
-            type is IdlSimpleType && type.isEnum() -> " (enum)"
+            type.isEnum -> " (enum)"
             decorators.isNotEmpty() -> " ${decorators.joinToString(", ", "(", ")")}"
             else -> ""
         }
@@ -459,14 +558,16 @@ class KtJsInterfaceGenerator : CodeGenerator() {
         }
     }
 
-    private fun IdlSimpleType.isEnum(): Boolean {
-        return model.enums.any { it.name == typeName }
-    }
+    private val IdlFunction.isCtor: Boolean get() = name == parentInterface?.name
 
-    private fun IdlModel.ktType(type: IdlType, isNullable: Boolean): String {
+    private val IdlType.isEnum: Boolean get() = this is IdlSimpleType && model.enums.any { it.name == typeName }
+
+    private val IdlType.simpleTypeName: String get() = (this as IdlSimpleType).typeName
+
+    private fun IdlModel.ktType(type: IdlType, isNullable: Boolean, enumsAsInts: Boolean = true): String {
         (type as? IdlSimpleType) ?: error("Unsupported type ${type::class.java.name}")
-        return if (enums.any { it.name == type.typeName }) {
-            type.typeName
+        return if (type.isEnum) {
+            if (enumsAsInts) "Int" else type.typeName
         } else {
             val isPrimitive = type.typeName in idlTypeMap.keys
             var typeStr = idlTypeMap.getOrDefault(type.typeName, type.typeName)
@@ -496,7 +597,7 @@ class KtJsInterfaceGenerator : CodeGenerator() {
             "unsigned long long" to "Long",
             "void" to "Unit",
             "any" to "Int",
-            "VoidPtr" to "Any"
+            "VoidPtr" to "JsAny"
         )
     }
 }
