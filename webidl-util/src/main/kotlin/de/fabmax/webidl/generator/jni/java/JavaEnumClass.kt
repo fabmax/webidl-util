@@ -62,36 +62,18 @@ internal class JavaEnumClass(idlElement: IdlEnum, idlPkg: String, packagePrefix:
         }
 
         w.append("""
-            private static final int LUT_SIZE = 256;
-            private static final $name[] enumValues = values();
-            private static final $name[] enumLut = new $name[LUT_SIZE];
-            
-            static {
-                for (int i = 0; i < enumValues.length; i++) {
-                    final $name it = enumValues[i];
-                    if (it.value >= 0 && it.value < LUT_SIZE) {
-                        enumLut[it.value] = it;
-                    }
-                }
-            }
-            
+            private static final $name[] enumValues = Arrays
+                    .stream($name.values())
+                    .sorted((a, b) -> Integer.compare(a.value, b.value))
+                    .toArray($name[]::new);
+            private static final int[] enumValueIds = Arrays.stream(enumValues).mapToInt(e -> e.value).toArray();
+    
             public static $name forValue(int value) {
-                $name enumValue = null;
-                if (value >= 0 && value < LUT_SIZE) {
-                    enumValue = enumLut[value];
-                } else {
-                    for (int i = 0; i < enumValues.length; i++) {
-                        final $name it = enumValues[i];
-                        if (it.value == value) {
-                            enumValue = it;
-                            break;
-                        }
-                    }
+                int i = Arrays.binarySearch(enumValueIds, value);
+                if (i >= 0) {
+                    return enumValues[i];
                 }
-                if (enumValue == null) {
-                    throw new IllegalArgumentException("Invalid ordinal value for enum ${name}: " + value);
-                }
-                return enumValue;
+                throw new IllegalArgumentException("Invalid ordinal value for enum $name: " + value);
             }
         """.trimIndent().prependIndent(4)).append("\n")
     }
@@ -99,6 +81,7 @@ internal class JavaEnumClass(idlElement: IdlEnum, idlPkg: String, packagePrefix:
     fun generateSource(w: Writer) {
         w.use {
             generatePackage(w)
+            w.append("import java.util.Arrays;\n\n")
             generateClassStart(w)
             w.write("}\n")
         }
